@@ -1,0 +1,102 @@
+package dev.waiz.datamanager.service;
+
+import dev.waiz.datamanager.model.account;
+import dev.waiz.datamanager.repository.accountrepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+public class accountservice {
+
+    @Autowired
+    private accountrepository accountRepository;
+
+    // CREATE - Save a new account
+    public account createAccount(account newAccount) {
+        return accountRepository.save(newAccount);
+    }
+
+    // READ - Get all accounts
+    public List<account> getAllAccounts() {
+        return accountRepository.findAll();
+    }
+
+    // READ - Get account by ID
+    public Optional<account> getAccountById(UUID accountId) {
+        return accountRepository.findById(accountId);
+    }
+
+    // READ - Get account by username
+    public Optional<account> getAccountByUsername(String username) {
+        return accountRepository.findByUsername(username);
+    }
+
+    // UPDATE - Update account details
+    public account updateAccount(UUID accountId, account updatedAccount) {
+        return accountRepository.findById(accountId)
+                .map(existingAccount -> {
+                    // Update fields
+                    if (updatedAccount.getUsername() != null) {
+                        existingAccount.setUsername(updatedAccount.getUsername());
+                    }
+                    if (updatedAccount.getPasswordHash() != null) {
+                        existingAccount.setPasswordHash(updatedAccount.getPasswordHash());
+                    }
+                    if (updatedAccount.getRole() != null) {
+                        existingAccount.setRole(updatedAccount.getRole());
+                    }
+                    if (updatedAccount.getStatus() != null) {
+                        existingAccount.setStatus(updatedAccount.getStatus());
+                    }
+                    return accountRepository.save(existingAccount);
+                })
+                .orElse(null);
+    }
+
+    // DELETE - Delete account by ID
+    public boolean deleteAccount(UUID accountId) {
+        if (accountRepository.existsById(accountId)) {
+            accountRepository.deleteById(accountId);
+            return true;
+        }
+        return false;
+    }
+
+    // UPDATE - Change account status
+    public account updateAccountStatus(UUID accountId, String status) {
+        return accountRepository.findById(accountId)
+                .map(existingAccount -> {
+                    existingAccount.setStatus(status);
+                    return accountRepository.save(existingAccount);
+                })
+                .orElse(null);
+    }
+
+    // UPDATE - Change account password (hash the password)
+    public account updateAccountPassword(UUID accountId, String hashedPassword) {
+        return accountRepository.findById(accountId)
+                .map(existingAccount -> {
+                    existingAccount.setPasswordHash(hashedPassword);
+                    return accountRepository.save(existingAccount);
+                })
+                .orElse(null);
+    }
+
+    // VERIFY - Check if username and password match
+    public boolean verifyCredentials(String username, String passwordHash) {
+        Optional<account> accountOptional = accountRepository.findByUsername(username);
+        if (accountOptional.isPresent()) {
+            account existingAccount = accountOptional.get();
+            return existingAccount.getPasswordHash().equals(passwordHash);
+        }
+        return false;
+    }
+
+    // CHECK - Verify if username already exists
+    public boolean usernameExists(String username) {
+        return accountRepository.existsByUsername(username);
+    }
+}
