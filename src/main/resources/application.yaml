@@ -1,4 +1,4 @@
-spring:
+spring: 
   application:
     name: datamanager
   datasource:
@@ -12,12 +12,8 @@ spring:
     show-sql: true
     properties:
       hibernate:
-      dialect: org.hibernate.dialect.PostgreSQLDialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
-      jwt:
-        secret: ${JWT_SECRET}
-        expiration: ${JWT_EXPIRATION}
-     
-
-  
-  
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:3600000}

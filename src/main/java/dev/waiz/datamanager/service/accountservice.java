@@ -3,6 +3,7 @@ package dev.waiz.datamanager.service;
 import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.repository.accountrepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
@@ -14,8 +15,15 @@ public class accountservice {
     @Autowired
     private accountrepository accountRepository;
 
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
     // CREATE - Save a new account
     public account createAccount(account newAccount) {
+        // Hash the password before saving
+        if (newAccount.getPasswordHash() != null && !newAccount.getPasswordHash().isEmpty()) {
+            String hashedPassword = passwordEncoder.encode(newAccount.getPasswordHash());
+            newAccount.setPasswordHash(hashedPassword);
+        }
         return accountRepository.save(newAccount);
     }
 
@@ -76,9 +84,10 @@ public class accountservice {
     }
 
     // UPDATE - Change account password (hash the password)
-    public account updateAccountPassword(UUID accountId, String hashedPassword) {
+    public account updateAccountPassword(UUID accountId, String plainPassword) {
         return accountRepository.findById(accountId)
                 .map(existingAccount -> {
+                    String hashedPassword = passwordEncoder.encode(plainPassword);
                     existingAccount.setPasswordHash(hashedPassword);
                     return accountRepository.save(existingAccount);
                 })
@@ -86,11 +95,12 @@ public class accountservice {
     }
 
     // VERIFY - Check if username and password match
-    public boolean verifyCredentials(String username, String passwordHash) {
+    public boolean verifyCredentials(String username, String plainPassword) {
         Optional<account> accountOptional = accountRepository.findByUsername(username);
         if (accountOptional.isPresent()) {
             account existingAccount = accountOptional.get();
-            return existingAccount.getPasswordHash().equals(passwordHash);
+            // Compare plain password with hashed password using BCrypt
+            return passwordEncoder.matches(plainPassword, existingAccount.getPasswordHash());
         }
         return false;
     }
