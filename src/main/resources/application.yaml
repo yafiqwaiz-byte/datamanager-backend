@@ -1,4 +1,8 @@
 spring: 
+  google:
+   client-id: ${GOOGLE_CLIENT_ID}
+   client-secret: ${GOOGLE_CLIENT_SECRET}
+
   application:
     name: datamanager
   datasource:
@@ -7,6 +11,7 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: update
     show-sql: true
@@ -15,5 +20,6 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 jwt:
-  secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION:3600000}
+   secret: ${JWT_SECRET}
+   expiration: ${JWT_EXPIRATION:3600000}
+

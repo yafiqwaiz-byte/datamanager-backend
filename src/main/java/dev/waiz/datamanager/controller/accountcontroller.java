@@ -19,8 +19,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import dev.waiz.datamanager.service.GoogleAuthService;
+import dev.waiz.datamanager.dto.GoogleSignInRequest;
+import dev.waiz.datamanager.dto.CompleteUserProfileRequest;
+import dev.waiz.datamanager.dto.CompleteStaffProfileRequest;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 @RestController
 @RequestMapping("/api/accounts")
+@CrossOrigin(origins = "http://localhost:3000") // Allow CORS for all origins (adjust as needed)
 public class accountcontroller {
 
     @Autowired
@@ -34,6 +40,9 @@ public class accountcontroller {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private GoogleAuthService googleAuthService;
 
     // SIGNIN - Authenticate user and return JWT token
     @PostMapping("/signin")
@@ -181,6 +190,168 @@ public class accountcontroller {
         return ResponseEntity.status(HttpStatus.CREATED).body(createdAccount);
     }
 
+
+    // GOOGLE SIGN-IN
+@PostMapping("/signin/google")
+public ResponseEntity<?> signinWithGoogle(@RequestBody GoogleSignInRequest request) {
+    // Verify Google token
+    GoogleIdToken.Payload payload = googleAuthService.verifyToken(request.getIdToken());
+    if (payload == null) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid Google token");
+    }
+ 
+    String email = payload.getEmail();
+    String fullName = (String) payload.get("name");
+ 
+    // Check if account already exists
+    Optional<account> existingAccount = accountService.getAccountByUsername(email);
+ 
+    if (existingAccount.isPresent()) {
+        // Existing user - sign in normally
+        account acc = existingAccount.get();
+        Object userDetails = null;
+ 
+        if ("USER".equals(acc.getRole())) {
+            Optional<user> userOpt = userService.getUserByAccountId(acc.getAccountId());
+            userDetails = userOpt.orElse(null);
+        } else if ("STAFF".equals(acc.getRole())) {
+            Optional<staff> staffOpt = staffService.getStaffByAccountId(acc.getAccountId());
+            userDetails = staffOpt.orElse(null);
+        }
+ 
+        String token = jwtUtil.generateToken(acc.getUsername(), acc.getRole());
+ 
+        AuthResponse response = AuthResponse.builder()
+                .token(token)
+                .username(acc.getUsername())
+                .role(acc.getRole())
+                .user(userDetails != null ? userDetails : acc)
+                .newUser(false)
+                .build();
+ 
+        return ResponseEntity.ok(response);
+ 
+    } else {
+        // New user - create account only, profile to be completed later
+        String role = request.getRole() != null ? request.getRole() : "USER";
+ 
+        account newAccount = new account(
+                email,
+                "", // no password for Google users
+                role,
+                "active"
+        );
+        account createdAccount = accountService.createGoogleAccount(newAccount);
+ 
+        // Generate token so frontend can make authenticated complete-profile call
+        String token = jwtUtil.generateToken(createdAccount.getUsername(), createdAccount.getRole());
+ 
+        // Return isNewUser = true so frontend redirects to complete profile page
+        AuthResponse response = AuthResponse.builder()
+                .token(token)
+                .username(createdAccount.getUsername())
+                .role(createdAccount.getRole())
+                .user(null)
+                .newUser(true)
+                .fullName(fullName)
+                .email(email)
+                .build();
+ 
+        return ResponseEntity.ok(response);
+    }
+
+}
+
+// COMPLETE PROFILE for Google users
+@PostMapping("/complete-profile/user")
+public ResponseEntity<?> completeUserProfile(@RequestBody CompleteUserProfileRequest request,
+                                              @RequestHeader("Authorization") String authHeader) {
+    try {
+        String token = authHeader.substring(7);
+        String username = jwtUtil.extractUsername(token);
+ 
+        Optional<account> accountOpt = accountService.getAccountByUsername(username);
+        if (!accountOpt.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
+        }
+ 
+        account acc = accountOpt.get();
+ 
+        // Check if profile already exists
+        Optional<user> existingUser = userService.getUserByAccountId(acc.getAccountId());
+        if (existingUser.isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Profile already completed");
+        }
+ 
+        // Create user profile with Google name + provided details
+        user newUser = new user(
+                acc,
+                acc.getUsername().contains("@") ? acc.getUsername().split("@")[0] : acc.getUsername(),
+                request.getCompanyName(),
+                request.getPhoneNo(),
+                request.getCompanyAddress()
+        );
+        user createdUser = userService.createUser(newUser);
+ 
+        AuthResponse response = AuthResponse.builder()
+                .token(token)
+                .username(acc.getUsername())
+                .role(acc.getRole())
+                .user(createdUser)
+                .newUser(false)
+                .build();
+ 
+        return ResponseEntity.ok(response);
+    } catch (Exception e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error completing profile: " + e.getMessage());
+    }
+}
+
+//COMPLETE PROFILE for Google staff
+@PostMapping("/complete-profile/staff")
+public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileRequest request,
+                                               @RequestHeader("Authorization") String authHeader) {
+    try {
+        String token = authHeader.substring(7);
+        String username = jwtUtil.extractUsername(token);
+ 
+        Optional<account> accountOpt = accountService.getAccountByUsername(username);
+        if (!accountOpt.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
+        }
+ 
+        account acc = accountOpt.get();
+ 
+        // Check if profile already exists
+        Optional<staff> existingStaff = staffService.getStaffByAccountId(acc.getAccountId());
+        if (existingStaff.isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Profile already completed");
+        }
+ 
+        // Create staff profile
+        staff newStaff = new staff(
+                acc,
+                acc.getUsername().contains("@") ? acc.getUsername().split("@")[0] : acc.getUsername(),
+                request.getDepartment(),
+                request.getPosition()
+        );
+        staff createdStaff = staffService.createStaff(newStaff);
+ 
+        AuthResponse response = AuthResponse.builder()
+                .token(token)
+                .username(acc.getUsername())
+                .role(acc.getRole())
+                .user(createdStaff)
+                .newUser(false)
+                .build();
+ 
+        return ResponseEntity.ok(response);
+    } catch (Exception e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error completing profile: " + e.getMessage());
+    }
+}
     // READ - Get all accounts
     @GetMapping
     public ResponseEntity<List<account>> getAllAccounts() {

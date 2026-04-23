@@ -14,4 +14,7 @@ public class AuthResponse {
     private String username;
     private String role;
     private Object user; // User or Staff object
+    private boolean newUser;
+    private String fullName; // From Google profile, for new users
+    private String email; // From Google profile, for new users
 }

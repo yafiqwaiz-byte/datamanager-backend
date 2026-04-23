@@ -3,7 +3,7 @@ package dev.waiz.datamanager.service;
 import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.repository.accountrepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
@@ -14,8 +14,8 @@ public class accountservice {
 
     @Autowired
     private accountrepository accountRepository;
-
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     // CREATE - Save a new account
     public account createAccount(account newAccount) {
@@ -26,6 +26,12 @@ public class accountservice {
         }
         return accountRepository.save(newAccount);
     }
+
+    // Google accounts don't have passwords - skip hashing
+public account createGoogleAccount(account newAccount) {
+    return accountRepository.save(newAccount);
+}
+
 
     // READ - Get all accounts
     public List<account> getAllAccounts() {

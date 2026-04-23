@@ -31,4 +31,12 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Environment files (never commit)
 .env
+.env.local
+.env.production
+.env.*.local
+
+# But DO commit this template
+!.env.example

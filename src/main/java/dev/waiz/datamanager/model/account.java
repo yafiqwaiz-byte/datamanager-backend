@@ -6,7 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Data
-@Table(name = "Account")
+@Table(name = "account")
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
