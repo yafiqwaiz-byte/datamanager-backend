@@ -23,3 +23,9 @@ jwt:
    secret: ${JWT_SECRET}
    expiration: ${JWT_EXPIRATION:3600000}
 
+servlet:
+     multipart:
+      enabled: true
+      max-file-size: 5MB
+      max-request-size: 10MB
+
