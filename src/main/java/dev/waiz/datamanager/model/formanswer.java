@@ -27,11 +27,11 @@ public class formanswer {
     private UUID answerId;
 
     @ManyToOne
-    @JoinColumn(name = "submission_id", referencedColumnName = "submissionId")
+    @JoinColumn(name = "submission_id")
     private formsubmission submission;
 
     @ManyToOne
-    @JoinColumn(name = "field_id", referencedColumnName = "fieldId")
+    @JoinColumn(name = "field_id")
     private formfield field;
 
     @Column(columnDefinition = "TEXT")

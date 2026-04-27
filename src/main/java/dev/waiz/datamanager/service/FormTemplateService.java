@@ -13,8 +13,10 @@ import dev.waiz.datamanager.dto.FormTemplateDTO;
 import dev.waiz.datamanager.model.formfield;
 import dev.waiz.datamanager.model.formtemplate;
 import dev.waiz.datamanager.repository.formtemplaterepository;
+import jakarta.transaction.Transactional;
 
 @Service
+@Transactional
 public class FormTemplateService {
 
 

@@ -30,11 +30,11 @@ public class formsubmission {
     private UUID submissionId;
 
     @ManyToOne
-    @JoinColumn(name = "user_id", referencedColumnName = "userID")
+    @JoinColumn(name = "user_id")
     private user user;
 
     @ManyToOne
-    @JoinColumn(name = "template_id", referencedColumnName = "templateId")
+    @JoinColumn(name = "template_id")
     private formtemplate template;
 
     private String inputMethod;
