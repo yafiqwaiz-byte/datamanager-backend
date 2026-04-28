@@ -46,51 +46,7 @@ public class formanswer {
         this.position = position;
     }
 
-    public UUID getAnswerId() {
-        return answerId;
-    }
-
-    public formsubmission getSubmission(){
-        return submission;
-    }
-
-    public formfield getField(){
-        return field;
-    }
-
-    public String getAnswerValue() {
-        return answerValue;
-    }
-
-    public String getPosition(){
-        return position;
-    }
-
-    public void setAnswerValue(String answerValue){
-        this.answerValue = answerValue;
-    }
-
-    public void setPosition(String position){
-        this.position = position;
-    }
-
-    public void setSubmission(formsubmission submission){
-        this.submission = submission;
-    }
-
-    public void setField(formfield field){
-        this.field = field;
-    }
-
-    public String toString() {
-        return "formanswer{" +
-                "answerId=" + answerId +
-                ", submissionId=" + (submission != null ? submission.getSubmissionId() : null) +
-                ", fieldId=" + (field != null ? field.getFieldId() : null) +
-                ", answerValue='" + answerValue + '\'' +
-                ", position='" + position + '\'' +
-                '}';
-    }
+    
 
     
 }
