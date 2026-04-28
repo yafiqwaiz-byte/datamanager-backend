@@ -22,6 +22,9 @@ public interface staffrepository extends JpaRepository<staff, UUID> {
     // Find staff by account ID
     Optional<staff> findByAccount_AccountId(UUID accountId);
     
+    // Find staff by username
+    Optional<staff> findByAccount_Username(String username);    
+    
     // Check if staff exists by full name
     boolean existsByFullName(String fullName);
     
