@@ -13,7 +13,7 @@ import lombok.*;
 public class user {
     @Id
      @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "staff_id", updatable = false, nullable = false)
+    @Column(name = "user_id", updatable = false, nullable = false)
     private UUID userID;
    
     @OneToOne

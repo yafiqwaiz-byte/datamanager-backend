@@ -21,6 +21,9 @@ public interface userrepository extends JpaRepository<user, UUID> {
     
     // Find user by account ID
     Optional<user> findByAccount_AccountId(UUID accountId);
+
+    //Find user by username
+    Optional<user> findByAccount_Username(String username);
     
     // Check if company name exists
     boolean existsByCompanyName(String companyName);
