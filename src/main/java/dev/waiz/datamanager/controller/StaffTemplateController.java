@@ -16,8 +16,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import dev.waiz.datamanager.dto.FormTemplateDTO;
+import dev.waiz.datamanager.dto.SubmissionResponseDTO;
 import dev.waiz.datamanager.dto.TemplateRequestDTO;
+import dev.waiz.datamanager.service.FormSubmissionService;
 import dev.waiz.datamanager.service.FormTemplateService;
+import org.springframework.web.bind.annotation.RequestParam;
+
 
 @RestController
 @RequestMapping("/api/staff/templates")
@@ -26,7 +30,24 @@ public class StaffTemplateController {
     @Autowired
     private FormTemplateService formTemplateService;
 
-    @GetMapping
+    @Autowired
+    private FormSubmissionService formSubmissionService;
+
+
+    public ResponseEntity<List<SubmissionResponseDTO>> getSubmissions(@PathVariable UUID id){
+        return ResponseEntity.ok(formSubmissionService.getSubmissionsByTemplate(id));
+    }
+
+    public String getMethodName(@RequestParam String param) {
+        return new String();
+    }
+
+    @GetMapping("/submissions/all")
+    public ResponseEntity<List<SubmissionResponseDTO>> getAllSubmissions(){
+        return ResponseEntity.ok(formSubmissionService.getAllSubmissions());
+    }
+
+    @GetMapping("/template/all")
     public ResponseEntity<List<FormTemplateDTO>> getAll(){
         return ResponseEntity.ok(formTemplateService.getAllTemplates());
     }

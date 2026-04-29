@@ -16,6 +16,7 @@ import dev.waiz.datamanager.dto.FormTemplateDTO;
 import dev.waiz.datamanager.model.formfield;
 import dev.waiz.datamanager.model.formtemplate;
 import dev.waiz.datamanager.model.staff;
+import dev.waiz.datamanager.repository.FormAnswerRepository;
 import dev.waiz.datamanager.repository.FormFieldRepository;
 import dev.waiz.datamanager.repository.formtemplaterepository;
 import dev.waiz.datamanager.repository.staffrepository;
@@ -34,6 +35,9 @@ public class FormTemplateService {
 
     @Autowired
     private FormFieldRepository formfieldrepository;
+
+    @Autowired
+    private FormAnswerRepository formanswerrepository;
 
 
 
@@ -120,6 +124,13 @@ public class FormTemplateService {
         if (request.getIsActive() != null) {
             template.setIsActive(request.getIsActive());
         }
+        formtemplaterepository.save(template);
+
+        // Delete answers first — they reference form_field via FK
+        List<formfield> existingFields = formfieldrepository.findByTemplate_TemplateId(id);
+        existingFields.forEach(field -> 
+            formanswerrepository.deleteByField_FieldId(field.getFieldId())
+        );
 
         formfieldrepository.deleteByTemplate_TemplateId(id);
         formfieldrepository.flush();
@@ -127,9 +138,9 @@ public class FormTemplateService {
         if(request.getFields()!=null){
             List<formfield> fields = request.getFields().stream()
                 .map(dto -> {
-                    formfield f = new formfield();
-                    f.setFieldLabel(dto.getFieldLabel());
-                    f.setFieldType(dto.getFieldType());
+                formfield f = new formfield();
+                f.setFieldLabel(dto.getFieldLabel());
+                f.setFieldType(dto.getFieldType());
                 f.setIsRequired(dto.getIsRequired());
                 f.setFieldOrder(dto.getFieldOrder());
                 f.setPlaceholder(dto.getPlaceholder());
@@ -160,6 +171,11 @@ public class FormTemplateService {
         if (!formtemplaterepository.existsById(id)) {
             throw new RuntimeException("Template not found"+id);
         }
+            // Delete answers first
+        List<formfield> fields = formfieldrepository.findByTemplate_TemplateId(id);
+        fields.forEach(field -> 
+            formanswerrepository.deleteByField_FieldId(field.getFieldId())
+        );
         formfieldrepository.deleteByTemplate_TemplateId(id);
         formtemplaterepository.deleteById(id);
     }
