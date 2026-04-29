@@ -47,7 +47,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/accounts/signup/user").permitAll()
                 .requestMatchers("/api/accounts/signup/staff").permitAll()
                 .requestMatchers("/api/staff/**").hasRole("STAFF")
-                .requestMatchers("/api/forms/**").hasRole("USER")
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/forms/submit").hasRole("USER")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/forms/**").authenticated()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
