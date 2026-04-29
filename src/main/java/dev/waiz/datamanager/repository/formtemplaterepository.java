@@ -5,8 +5,11 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import dev.waiz.datamanager.model.formtemplate;
+import dev.waiz.datamanager.model.staff;
 
 public interface formtemplaterepository extends JpaRepository<formtemplate, UUID> {
 
     List<formtemplate>findByIsActiveTrue();
+
+        List<formtemplate> findByStaff(staff staff);
 }
