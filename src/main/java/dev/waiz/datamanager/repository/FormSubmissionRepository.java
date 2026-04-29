@@ -8,4 +8,5 @@ import dev.waiz.datamanager.model.user;
 
 public interface FormSubmissionRepository extends JpaRepository<formsubmission,UUID>{
           List<formsubmission> findByUser(user user);
+          List<formsubmission> findByTemplate_TemplateId(UUID templateId);
 }

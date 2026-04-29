@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -41,7 +42,7 @@ public class formsubmission {
     private LocalDateTime submittedAt;
     private String status;
 
-    @OneToMany(mappedBy = "submission",cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "submission",cascade = CascadeType.ALL,fetch = FetchType.EAGER)
     private List<formanswer> answers;
 
     public formsubmission(user user, formtemplate template, String inputMethod, LocalDateTime submittedAt, String status) {
