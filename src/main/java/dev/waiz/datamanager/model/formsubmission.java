@@ -6,6 +6,7 @@ import java.util.UUID;
 
 
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -38,8 +39,13 @@ public class formsubmission {
     @JoinColumn(name = "template_id")
     private formtemplate template;
 
+    @Column(name = "input_method")
     private String inputMethod;
+
+    @Column(name = "submitted_at")
     private LocalDateTime submittedAt;
+
+    @Column(name = "status")
     private String status;
 
     @OneToMany(mappedBy = "submission",cascade = CascadeType.ALL,fetch = FetchType.EAGER)

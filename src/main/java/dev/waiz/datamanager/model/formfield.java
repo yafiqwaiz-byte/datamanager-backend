@@ -32,19 +32,19 @@ public class formfield {
     @JoinColumn(name = "template_id")
     private formtemplate template;
 
+    @Column(name = "field_label")
     private String fieldLabel;
+
+    @Column(name = "field_type")
     private String fieldType; //text, number, date, dropdown, etc.
+    
+    @Column(name = "is_required")
     private Boolean isRequired;
+
+    @Column(name = "field_order")
     private Integer fieldOrder;
+
     private String placeholder;
 
-    public formfield(formtemplate template, String fieldLabel, String fieldType, Boolean isRequired, Integer fieldOrder, String placeholder) {
-        this.template = template;
-        this.fieldLabel = fieldLabel;
-        this.fieldType = fieldType;
-        this.isRequired = isRequired;
-        this.fieldOrder = fieldOrder;
-        this.placeholder = placeholder;
-    }
 
 }

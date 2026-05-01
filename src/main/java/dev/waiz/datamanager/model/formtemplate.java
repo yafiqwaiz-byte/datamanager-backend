@@ -37,18 +37,19 @@ public class formtemplate {
     @JoinColumn(name="staff_id")
     private staff staff;
 
+    @Column(name = "template_name")
     private String templateName;
+
     private String description;
+
+    @Column(name = "is_active")
     private Boolean isActive;
+
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @OneToMany(mappedBy = "template", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<formfield> fields;
 
-    public formtemplate(String templateName, String description, Boolean isActive) {
-        this.templateName = templateName;
-        this.description = description;
-        this.isActive = isActive;
-    }
 
 }
