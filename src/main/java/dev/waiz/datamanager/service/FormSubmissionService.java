@@ -4,6 +4,7 @@ package dev.waiz.datamanager.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.multipart.MultipartFile;
 
 import dev.waiz.datamanager.dto.AnswerResponseDTO;
@@ -62,7 +63,7 @@ public class FormSubmissionService {
         UUID templateId,
         String inputMethod,
         Map<String, String> allParams,
-        Map<String, MultipartFile> allFiles
+        MultiValueMap<String, MultipartFile> allFiles
     ) {
         // 1. Get logged in user
         String username = SecurityContextHolder.getContext()
@@ -102,35 +103,40 @@ public class FormSubmissionService {
 
         // 5. Save image/file uploads
         if (allFiles != null) {
-            allFiles.forEach((key, file) -> {
-                if (key.startsWith("file_") && file != null && !file.isEmpty()) {
+            allFiles.forEach((key, files) -> {
+                if (key.startsWith("file_") && files != null && !files.isEmpty()) {
                     UUID fieldId = UUID.fromString(key.replace("file_", ""));
                     formfield field = formFieldRepository.findById(fieldId)
                         .orElseThrow(() -> new RuntimeException("Field not found: " + fieldId));
 
+                    List<String> savedPaths = new java.util.ArrayList<>();    
+                    for (MultipartFile file : files) {
+                    if (file == null || file.isEmpty()) continue;
                     try {
-                        // Generate unique filename to avoid conflicts
                         String originalName = file.getOriginalFilename();
                         String extension = originalName != null && originalName.contains(".")
                             ? originalName.substring(originalName.lastIndexOf("."))
                             : "";
                         String filename = UUID.randomUUID() + extension;
 
-                        // Save file to disk
                         Path savePath = Paths.get(uploadDir + filename);
                         Files.createDirectories(savePath.getParent());
                         Files.write(savePath, file.getBytes());
 
-                        // Save file path as answer value
-                        formanswer answer = new formanswer();
-                        answer.setSubmission(submission);
-                        answer.setField(field);
-                        answer.setAnswerValue(uploadDir + filename);  // e.g. uploads/form-files/uuid.jpg
-                        formAnswerRepository.save(answer);
-
+                        savedPaths.add(uploadDir + filename);
                     } catch (IOException e) {
                         throw new RuntimeException("Failed to save file: " + e.getMessage());
                     }
+                }
+                // ✅ Store all paths as comma-separated in ONE answer row
+                if (!savedPaths.isEmpty()) {
+                    formanswer answer = new formanswer();
+                    answer.setSubmission(submission);
+                    answer.setField(field);
+                    answer.setAnswerValue(String.join(",", savedPaths)); // e.g. "uploads/form-files/a.jpg,uploads/form-files/b.jpg"
+                    formAnswerRepository.save(answer);
+                }
+
                 }
             });
         }
