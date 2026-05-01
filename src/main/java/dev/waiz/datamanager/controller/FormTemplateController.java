@@ -9,9 +9,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 import dev.waiz.datamanager.dto.FormTemplateDTO;
+
 import dev.waiz.datamanager.service.FormTemplateService;
+
+
 
 @RestController
 @RequestMapping("/api/forms")
@@ -20,7 +22,7 @@ public class FormTemplateController {
     @Autowired
     private FormTemplateService formTemplateService;
 
-    @GetMapping("/templates")
+    @GetMapping({"/templates","/staff/templates"})
     public ResponseEntity<List<FormTemplateDTO>> getActiveTemplates() {
         List<FormTemplateDTO> templates = formTemplateService.getActiveTemplates();
         return ResponseEntity.ok(templates);

@@ -20,8 +20,6 @@ import dev.waiz.datamanager.dto.SubmissionResponseDTO;
 import dev.waiz.datamanager.dto.TemplateRequestDTO;
 import dev.waiz.datamanager.service.FormSubmissionService;
 import dev.waiz.datamanager.service.FormTemplateService;
-import org.springframework.web.bind.annotation.RequestParam;
-
 
 @RestController
 @RequestMapping("/api/staff/templates")
@@ -33,50 +31,59 @@ public class StaffTemplateController {
     @Autowired
     private FormSubmissionService formSubmissionService;
 
-
-    public ResponseEntity<List<SubmissionResponseDTO>> getSubmissions(@PathVariable UUID id){
-        return ResponseEntity.ok(formSubmissionService.getSubmissionsByTemplate(id));
+    // ✅ From FormTemplateController — get all active templates
+    @GetMapping
+    public ResponseEntity<List<FormTemplateDTO>> getActiveTemplates() {
+        return ResponseEntity.ok(formTemplateService.getActiveTemplates());
     }
 
-    public String getMethodName(@RequestParam String param) {
-        return new String();
-    }
-
-    @GetMapping("/submissions/all")
-    public ResponseEntity<List<SubmissionResponseDTO>> getAllSubmissions(){
-        return ResponseEntity.ok(formSubmissionService.getAllSubmissions());
-    }
-
-    @GetMapping("/template/all")
-    public ResponseEntity<List<FormTemplateDTO>> getAll(){
+    // ✅ From StaffTemplateController — get all templates for current staff
+    @GetMapping("/all")
+    public ResponseEntity<List<FormTemplateDTO>> getAllTemplates() {
         return ResponseEntity.ok(formTemplateService.getAllTemplates());
     }
 
+    // ✅ From FormTemplateController — get template by id
     @GetMapping("/{id}")
-    public ResponseEntity<FormTemplateDTO> getById(@PathVariable UUID id){
+    public ResponseEntity<FormTemplateDTO> getTemplateById(@PathVariable UUID id) {
         return ResponseEntity.ok(formTemplateService.getTemplateById(id));
     }
 
+    // ✅ From FormTemplateController — get submissions for a template
+    @GetMapping("/{id}/submissions")
+    public ResponseEntity<List<SubmissionResponseDTO>> getSubmissions(@PathVariable UUID id) {
+        return ResponseEntity.ok(formSubmissionService.getSubmissionsByTemplate(id));
+    }
+
+    // ✅ From StaffTemplateController — get all submissions across all staff templates
+    @GetMapping("/submissions/all")
+    public ResponseEntity<List<SubmissionResponseDTO>> getAllSubmissions() {
+        return ResponseEntity.ok(formSubmissionService.getAllSubmissions());
+    }
+
+    // ✅ Create template
     @PostMapping
-    public ResponseEntity<FormTemplateDTO> create(@RequestBody TemplateRequestDTO request){
+    public ResponseEntity<FormTemplateDTO> createTemplate(@RequestBody TemplateRequestDTO request) {
         return ResponseEntity.ok(formTemplateService.createTemplate(request));
     }
 
+    // ✅ Update template
     @PutMapping("/{id}")
-    public ResponseEntity<FormTemplateDTO> update(@PathVariable UUID id, @RequestBody TemplateRequestDTO request){
+    public ResponseEntity<FormTemplateDTO> updateTemplate(@PathVariable UUID id, @RequestBody TemplateRequestDTO request) {
         return ResponseEntity.ok(formTemplateService.updateTemplate(id, request));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id){
-        formTemplateService.deleteTemplate(id);
-        return ResponseEntity.noContent().build();
-    }
-
+    // ✅ Toggle active/inactive
     @PatchMapping("/{id}/toggle")
-    public ResponseEntity<Void> toggleActive(@PathVariable UUID id){
+    public ResponseEntity<Void> toggleActive(@PathVariable UUID id) {
         formTemplateService.toggleActive(id);
         return ResponseEntity.noContent().build();
     }
 
+    // ✅ Delete template
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteTemplate(@PathVariable UUID id) {
+        formTemplateService.deleteTemplate(id);
+        return ResponseEntity.noContent().build();
+    }
 }
