@@ -13,4 +13,6 @@ public class SignupStaffRequest {
     private String fullName;
     private String department;
     private String position;
+    private String securityQuestion;
+    private String securityAnswer;
 }

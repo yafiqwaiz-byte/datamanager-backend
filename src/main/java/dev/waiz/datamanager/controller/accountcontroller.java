@@ -16,12 +16,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import dev.waiz.datamanager.service.GoogleAuthService;
 import dev.waiz.datamanager.dto.GoogleSignInRequest;
 import dev.waiz.datamanager.dto.CompleteUserProfileRequest;
+import dev.waiz.datamanager.dto.ForgotPasswordRequest;
 import dev.waiz.datamanager.dto.CompleteStaffProfileRequest;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 @RestController
@@ -106,6 +108,8 @@ public class accountcontroller {
                     "USER",
                     "active"
             );
+            newAccount.setSecurityQuestion(signupRequest.getSecurityQuestion());
+            newAccount.setSecurityAnswer(signupRequest.getSecurityAnswer());
             account createdAccount = accountService.createAccount(newAccount);
 
             // Create user profile
@@ -418,6 +422,26 @@ public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileR
             return ResponseEntity.ok(foundAccount.get());
         }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
+    }
+
+    @GetMapping("/security-question/{username}")
+    public ResponseEntity<?> getSecurityQuestion(@PathVariable String username){
+        try {
+            String question = accountService.getSecurityQuestion(username);
+            return ResponseEntity.ok(Map.of("securityQuestion", question));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(404).body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ForgotPasswordRequest req){
+        try{
+            accountService.resetPassword(req);
+            return ResponseEntity.ok(Map.of("message","Password reset successfully"));
+        } catch (RuntimeException e){
+            return ResponseEntity.status(404).body(e.getMessage());
+        }
     }
 
     // Helper class for password change

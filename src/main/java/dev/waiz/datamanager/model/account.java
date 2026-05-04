@@ -29,6 +29,12 @@ public class account {
     @Column(name = "status", nullable = false)
     private String status;
 
+    @Column(name = "security_question")
+    private String securityQuestion;
+
+    @Column(name = "security_answer")
+    private String securityAnswer;
+
     @Column(name = "created_at", columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private  OffsetDateTime createdAt;
 
@@ -92,15 +98,5 @@ public class account {
         this.accountId = accountId;
     }
 
-    public String toString() {
-        return "account{" +
-                "accountId=" + accountId +
-                ", username='" + username + '\'' +
-                ", passwordHash='" + passwordHash + '\'' +
-                ", role='" + role + '\'' +
-                ", status='" + status + '\'' +
-                ", createdAt=" + createdAt +
-                '}';
-    }
-    
+   
 }

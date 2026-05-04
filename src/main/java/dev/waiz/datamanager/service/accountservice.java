@@ -1,5 +1,6 @@
 package dev.waiz.datamanager.service;
 
+import dev.waiz.datamanager.dto.ForgotPasswordRequest;
 import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.repository.accountrepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,11 +10,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+
 @Service
 public class accountservice {
 
     @Autowired
     private accountrepository accountRepository;
+
     @Autowired
     private PasswordEncoder passwordEncoder;
 
@@ -27,10 +30,31 @@ public class accountservice {
         return accountRepository.save(newAccount);
     }
 
+    public String getSecurityQuestion(String usename){
+        account acc = accountRepository.findByUsername(usename)
+        .orElseThrow(() -> new RuntimeException("User not found"));
+        if (acc.getSecurityQuestion() == null){
+            throw new RuntimeException("No security question for this account");
+        }
+        return acc.getSecurityQuestion();
+    }
+
+    public void resetPassword(ForgotPasswordRequest req){
+        account acc = accountRepository.findByUsername(req.getUsername())
+        .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!acc.getSecurityAnswer().equalsIgnoreCase(req.getSecurityAnswer())){
+            throw new RuntimeException("Incorrect security answer");
+        }
+
+        acc.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
+        accountRepository.save(acc);
+    }
+
     // Google accounts don't have passwords - skip hashing
-public account createGoogleAccount(account newAccount) {
-    return accountRepository.save(newAccount);
-}
+    public account createGoogleAccount(account newAccount) {
+        return accountRepository.save(newAccount);
+    }
 
 
     // READ - Get all accounts

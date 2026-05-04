@@ -14,6 +14,7 @@ public interface accountrepository extends JpaRepository<account, UUID> {
     
     // Check if username exists
     boolean existsByUsername(String username);
+
     
     // Find accounts by role
     // List<account> findByRole(String role);

@@ -14,4 +14,6 @@ public class SignupUserRequest {
     private String companyName;
     private String phoneNo;
     private String companyAddress;
+    private String securityQuestion;
+    private String securityAnswer;
 }
