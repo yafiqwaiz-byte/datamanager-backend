@@ -57,7 +57,7 @@ public class FormSubmissionService {
     @Autowired
     private accountrepository accountRepository;
 
-    private final String uploadDir= "uploads/form-files";
+    private final String uploadDir= "uploads/form-files/";
 
     public UUID saveSubmission(
         UUID templateId,
@@ -119,11 +119,11 @@ public class FormSubmissionService {
                             : "";
                         String filename = UUID.randomUUID() + extension;
 
-                        Path savePath = Paths.get(uploadDir + filename);
+                        Path savePath = Paths.get(uploadDir + "/" + filename);
                         Files.createDirectories(savePath.getParent());
                         Files.write(savePath, file.getBytes());
 
-                        savedPaths.add(uploadDir + filename);
+                        savedPaths.add(uploadDir + "/" + filename);
                     } catch (IOException e) {
                         throw new RuntimeException("Failed to save file: " + e.getMessage());
                     }

@@ -38,5 +38,8 @@ build/
 .env.production
 .env.*.local
 
+# Uploaded user files (never commit)
+uploads/
+
 # But DO commit this template
 !.env.example
