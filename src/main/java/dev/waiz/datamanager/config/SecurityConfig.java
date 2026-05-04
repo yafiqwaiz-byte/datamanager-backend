@@ -23,16 +23,25 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.io.IOException;
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-public class SecurityConfig {
+public class SecurityConfig implements WebMvcConfigurer {
 
     @Autowired
     private JwtAuthFilter jwtAuthFilter;
+
+
+     @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/uploads/**")
+            .addResourceLocations("file:C:/Users/User/Documents/Projectwaiz/datamanager/uploads/");
+    }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -46,6 +55,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/accounts/signin/google").permitAll()
                 .requestMatchers("/api/accounts/signup/user").permitAll()
                 .requestMatchers("/api/accounts/signup/staff").permitAll()
+                .requestMatchers("/api/accounts/security-question/**").permitAll()
+                .requestMatchers("/api/accounts/reset-password").permitAll()
                 .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers("/api/staff/**").hasRole("STAFF")
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/forms/submit").hasRole("USER")
@@ -67,10 +78,13 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(List.of("http://localhost:3000"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L); 
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/uploads/**", configuration);
         return source;
     }
 
