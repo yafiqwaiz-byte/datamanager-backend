@@ -43,3 +43,7 @@ uploads/
 
 # But DO commit this template
 !.env.example
+
+*.json
+# or specifically:
+datamanager-494104-b8b54b41c63a.json
