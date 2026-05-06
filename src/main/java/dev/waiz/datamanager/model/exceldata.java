@@ -19,31 +19,27 @@ import lombok.NoArgsConstructor;
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "file_upload")
-public class fileupload {
+@Table(name = "excel_data")
+public class exceldata {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "upload_id")
-    private UUID uploadId;
+    @Column(name = "excel_id")
+    private UUID excelId;
 
     @ManyToOne
-    @JoinColumn(name = "user_id")
-    private user user;
+    @JoinColumn(name = "upload_id")
+    private fileupload upload;
 
-    @ManyToOne
-    @JoinColumn(name = "staff_id")
-    private staff staff;
+    @Column(name = "column_headers",columnDefinition = "jsonb")
+    private String columnHeader;
 
-    @Column(name = "file_name")
-    private String fileName;
+    @Column(name = "row_data",columnDefinition = "jsonb")
+    private String rowData;
 
-    @Column(name = "file_type")
-    private String fileType;
+    @Column(name = "row_count")
+    private Integer rowCount;
 
-    @Column(name = "file_path")
-    private String filePath;
-
-    @Column(name = "uploaded_at")
-    private OffsetDateTime uploadedAt;
+    @Column(name = "processed_at")
+    private OffsetDateTime processedAt;
 }

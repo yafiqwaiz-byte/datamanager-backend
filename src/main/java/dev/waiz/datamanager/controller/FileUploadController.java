@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import dev.waiz.datamanager.model.fileupload;
-import dev.waiz.datamanager.model.processeddata;
+import dev.waiz.datamanager.model.ocrresult;
 import dev.waiz.datamanager.service.FileUploadService;
 
 @RestController
@@ -25,7 +25,7 @@ public class FileUploadController {
     @PostMapping(value = "/upload",consumes = "multipart/form-data")
     public ResponseEntity<?> uploadAndProcess(@RequestParam("file") MultipartFile file){
         try {
-            processeddata result = fileUploadService.uploadAndProcess(file);
+            ocrresult result = fileUploadService.uploadAndProcess(file);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.status(500).body("OCR failed:" + e.getMessage());

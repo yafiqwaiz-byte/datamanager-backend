@@ -4,31 +4,33 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 
 import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.model.fileupload;
-import dev.waiz.datamanager.model.processeddata;
+import dev.waiz.datamanager.model.ocrresult;
 import dev.waiz.datamanager.model.user;
 import dev.waiz.datamanager.repository.FileUploadRepository;
-import dev.waiz.datamanager.repository.ProcessedDataRepository;
+import dev.waiz.datamanager.repository.OcrResultRepository;
 import dev.waiz.datamanager.repository.accountrepository;
 import dev.waiz.datamanager.repository.userrepository;
 
+@Service
 public class FileUploadService {
 
     @Autowired
     private FileUploadRepository fileUploadRepository;
 
     @Autowired
-    private ProcessedDataRepository processedDataRepository;
+    private OcrResultRepository ocrResultRepository;
 
     @Autowired
     private OcrService ocrService;
@@ -41,7 +43,7 @@ public class FileUploadService {
 
     private final String uploadDir = "uploads/ocr-files/";
 
-    public processeddata uploadAndProcess(MultipartFile file) throws IOException{
+    public ocrresult uploadAndProcess(MultipartFile file) throws IOException{
 
         String username = SecurityContextHolder.getContext()
                           .getAuthentication().getName();
@@ -64,7 +66,7 @@ public class FileUploadService {
         upload.setFileName(originName);
         upload.setFileType(file.getContentType());
         upload.setFilePath(uploadDir + filename);
-        upload.setUploadedAt(LocalDateTime.now());
+        upload.setUploadedAt(OffsetDateTime.now());
         fileUploadRepository.save(upload);
 
         String extractedText = "";
@@ -77,15 +79,15 @@ public class FileUploadService {
             status = "failed";
         }
 
-        processeddata processed = new processeddata();
-        processed.setUpload(upload);
-        processed.setCleanedData(extractedText);
-        processed.setValidationStatus(status);
-        processed.setErrorLog(errorLog);
-        processed.setProcessedAt(LocalDateTime.now());
-        processedDataRepository.save(processed);
+        ocrresult result = new ocrresult();
+        result.setUpload(upload);
+        result.setExtractedText(extractedText);
+        result.setStatus(status);
+        result.setErrorLog(errorLog);
+        result.setProcessedAt(OffsetDateTime.now());
+        ocrResultRepository.save(result);
 
-        return processed;
+        return result;
     }
 
     public List<fileupload> getUserUploads() {

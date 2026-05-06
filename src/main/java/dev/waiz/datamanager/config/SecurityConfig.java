@@ -41,6 +41,8 @@ public class SecurityConfig implements WebMvcConfigurer {
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/uploads/**")
             .addResourceLocations("file:C:/Users/User/Documents/Projectwaiz/datamanager/uploads/");
+        registry.addResourceHandler("/uploads/ocr-files/**")
+            .addResourceLocations("file:C:/Users/User/Documents/Projectwaiz/datamanager/uploads/ocr-files/");   
     }
 
     @Bean
@@ -59,6 +61,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .requestMatchers("/api/accounts/reset-password").permitAll()
                 .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers("/api/staff/**").hasRole("STAFF")
+                .requestMatchers("/api/ocr/**").hasAnyRole("USER","STAFF")
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/forms/submit").hasRole("USER")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/forms/**").authenticated()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/forms/templates").hasRole("STAFF")
@@ -114,6 +117,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                     String username = jwtUtil.extractUsername(token);
                     String role = jwtUtil.extractRole(token);
 
+                    System.out.println("✅ Auth: " + username + " | Role: " + role);
                     UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                             username,
@@ -122,7 +126,11 @@ public class SecurityConfig implements WebMvcConfigurer {
                         );
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    System.out.println("❌ Invalid token");
                 }
+            } else {
+                System.out.println("❌ No auth header for: " + request.getRequestURI()); 
             }
 
             filterChain.doFilter(request, response);

@@ -16,34 +16,30 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@Entity
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "file_upload")
-public class fileupload {
+@Entity
+@Table(name = "ocr_result")
+public class ocrresult {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "upload_id")
-    private UUID uploadId;
+    @Column(name = "ocr_id")
+    private UUID ocrId;
 
     @ManyToOne
-    @JoinColumn(name = "user_id")
-    private user user;
+    @JoinColumn(name = "upload_id")
+    private fileupload upload;
 
-    @ManyToOne
-    @JoinColumn(name = "staff_id")
-    private staff staff;
+    @Column(name = "extracted_text",columnDefinition = "TEXT")
+    private String extractedText;
 
-    @Column(name = "file_name")
-    private String fileName;
+    @Column(name = "status")
+    private String status;
 
-    @Column(name = "file_type")
-    private String fileType;
+    @Column(name = "error_log",columnDefinition = "TEXT")
+    private String errorLog;
 
-    @Column(name = "file_path")
-    private String filePath;
-
-    @Column(name = "uploaded_at")
-    private OffsetDateTime uploadedAt;
+    @Column(name = "processed_at")
+    private OffsetDateTime processedAt;
 }
