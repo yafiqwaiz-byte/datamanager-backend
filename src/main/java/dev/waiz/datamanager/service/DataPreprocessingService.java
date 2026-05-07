@@ -3,9 +3,11 @@ package dev.waiz.datamanager.service;
 import java.io.InputStream;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.apache.poi.ss.usermodel.Sheet;
@@ -24,7 +26,9 @@ import dev.waiz.datamanager.model.fileupload;
 import dev.waiz.datamanager.repository.ExcelDataRepository;
 import dev.waiz.datamanager.repository.FileUploadRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DataPreprocessingService {
@@ -61,6 +65,14 @@ public class DataPreprocessingService {
         }
         workbook.close();
 
+        int beforecount =rows.size();
+        rows = removeDuplicates(rows);
+        int aftercount = rows.size();
+        int duplicatesRemoved = beforecount - aftercount;
+        log.info("Duplicated removed:{}",duplicatesRemoved);
+
+        validateHeaders(headers);
+
 
         String headersJson = objectMapper.writeValueAsString(headers);
         String rowJson = objectMapper.writeValueAsString(rows);
@@ -77,6 +89,30 @@ public class DataPreprocessingService {
 
     public List<exceldata> getByUploadId (UUID uploadId){
         return excelDataRepository.findByUpload_UploadId(uploadId);
+    }
+
+    private List<Map<String,String>> removeDuplicates(List<Map<String,String>> rows){
+        List<Map<String,String>> unique = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+
+        for (Map<String,String> row : rows){
+            String fingerprint = row.toString();
+            if(seen.add(fingerprint)){
+                unique.add(row);
+            } else {
+                log.warn("Duplicate row detected and removed: {}",fingerprint);
+            }
+        }
+        return unique;
+    }
+
+    private void validateHeaders(List<String> headers){
+        for(int i=0;i < headers.size();i++){
+            if(headers.get(i).isEmpty()){
+                log.warn("Empty header detected at column index {}", i);
+            }
+        }
+    
     }
 
     private String getCellValue(Cell cell){
