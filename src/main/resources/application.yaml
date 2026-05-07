@@ -1,8 +1,9 @@
-spring: 
-  google:
-   client-id: ${GOOGLE_CLIENT_ID}
-   client-secret: ${GOOGLE_CLIENT_SECRET}
-
+spring:
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 5MB
+      max-request-size: 10MB 
   application:
     name: datamanager
   datasource:
@@ -18,14 +19,15 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        "[hibernate.jdbc.batch_size]": 500
+        "[hibernate.order_inserts]": true
 
 jwt:
-   secret: ${JWT_SECRET}
-   expiration: ${JWT_EXPIRATION:3600000}
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:3600000}
+google:
+  client-id: ${GOOGLE_CLIENT_ID}
+  client-secret: ${GOOGLE_CLIENT_SECRET}
 
-servlet:
-     multipart:
-      enabled: true
-      max-file-size: 5MB
-      max-request-size: 10MB
 
+ 
