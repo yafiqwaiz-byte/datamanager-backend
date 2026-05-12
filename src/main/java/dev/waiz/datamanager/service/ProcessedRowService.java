@@ -90,7 +90,12 @@ public class ProcessedRowService {
         }
        return processedRowsRepository.findByExcel_ExcelId(excelId);
 }
-    
+
+    public List<processedrows> getRowsByVersion(UUID excelId, String version) {
+        return processedRowsRepository
+                .findByExcel_ExcelIdAndDataVersion(excelId, version);
+    }
+        
 
     // ─── Missing Values ────────────────────────────────────────────
     private Map<String, String> handleMissingValues(

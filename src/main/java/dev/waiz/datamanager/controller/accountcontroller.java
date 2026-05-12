@@ -158,12 +158,11 @@ public class accountcontroller {
             account createdAccount = accountService.createAccount(newAccount);
 
             // Create staff profile
-            staff newStaff = new staff(
-                    createdAccount,
-                    signupRequest.getFullName(),
-                    signupRequest.getDepartment(),
-                    signupRequest.getPosition()
-            );
+            staff newStaff = new staff();
+            newStaff.setAccount(createdAccount);
+            newStaff.setFullName(signupRequest.getFullName());
+            newStaff.setDepartment(signupRequest.getDepartment());
+            newStaff.setPosition(signupRequest.getPosition());
             staff createdStaff = staffService.createStaff(newStaff);
 
             // Generate JWT token
@@ -334,12 +333,11 @@ public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileR
         }
  
         // Create staff profile
-        staff newStaff = new staff(
-                acc,
-                acc.getUsername().contains("@") ? acc.getUsername().split("@")[0] : acc.getUsername(),
-                request.getDepartment(),
-                request.getPosition()
-        );
+        staff newStaff = new staff();
+        newStaff.setAccount(acc);
+        newStaff.setFullName(acc.getUsername().contains("@") ? acc.getUsername().split("@")[0] : acc.getUsername());
+        newStaff.setDepartment(request.getDepartment());
+        newStaff.setPosition(request.getPosition());
         staff createdStaff = staffService.createStaff(newStaff);
  
         AuthResponse response = AuthResponse.builder()

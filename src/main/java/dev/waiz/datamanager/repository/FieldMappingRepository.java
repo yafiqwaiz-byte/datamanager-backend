@@ -12,7 +12,7 @@ public interface FieldMappingRepository extends JpaRepository<fieldmapping, UUID
 
     List<fieldmapping> findByOcr_OcrId(UUID ocrId);
 
-    List<fieldmapping> findByTemplate_TemplateId(UUID templateId);
+    List<fieldmapping> findByLetterTemplate_LetterTemplateId(UUID letterTemplateId);
 }
 
 

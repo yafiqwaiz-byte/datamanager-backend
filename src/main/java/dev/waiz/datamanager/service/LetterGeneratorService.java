@@ -62,7 +62,7 @@ public class LetterGeneratorService {
     
     }
 
-    public List<generatedletter> getLetterByMapping(UUID mappingId){
+    public List<generatedletter> getLettersByMapping(UUID mappingId){
         return generatedLetterRepository.findByMapping_MappingId(mappingId);
     }
 
