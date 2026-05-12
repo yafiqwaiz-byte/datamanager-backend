@@ -15,7 +15,7 @@ public class staff {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "staff_id", updatable = false, nullable = false)
-    private UUID staffID;
+    private UUID staffId;
 
     @OneToOne
     @JoinColumn(name = "account_id", referencedColumnName = "account_id")     
@@ -30,31 +30,5 @@ public class staff {
     @Column(name = "position", nullable = false)
     private String position;
 
-    public staff(account account, String fullName, String department, String position) {
-        this.account = account;
-        this.fullName = fullName;
-        this.department = department;
-        this.position = position;
-    }
-
   
-    public void setStaffID(String staffID) {
-        this.staffID = UUID.fromString(staffID);
-    }
-
-    public void setAccount(String accountId) {
-        this.account = new account();
-        this.account.setAccountId(UUID.fromString(accountId));
-    }
-
-    public String toString() {
-        return "staff{" +
-                "staffID=" + staffID +
-                ", account=" + account +
-                ", fullName='" + fullName + '\'' +
-                ", department='" + department + '\'' +
-                ", position='" + position + '\'' +
-                '}';
-    }
-    
 }
