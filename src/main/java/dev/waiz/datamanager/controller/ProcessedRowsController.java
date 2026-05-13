@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import dev.waiz.datamanager.model.processedrows;
+import dev.waiz.datamanager.dto.ProcessedRowDTO;
 import dev.waiz.datamanager.service.ProcessedRowService;
 import lombok.RequiredArgsConstructor;
 
@@ -23,9 +23,9 @@ public class ProcessedRowsController {
     private final ProcessedRowService processedRowService;
 
     @PostMapping("/save/{excelId}")
-    public ResponseEntity<?> saveRows(@PathVariable UUID excelId){
-        try{
-            List<processedrows> rows = processedRowService.saveProcessedRows(excelId);
+    public ResponseEntity<?> saveRows(@PathVariable UUID excelId) {
+        try {
+            List<ProcessedRowDTO> rows = processedRowService.saveProcessedRows(excelId);
             return ResponseEntity.ok(rows);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Failed to save processed rows: " + e.getMessage());
@@ -33,18 +33,19 @@ public class ProcessedRowsController {
     }
 
     @GetMapping("/{excelId}/all")
-    public ResponseEntity<List<processedrows>> getAllRows(@PathVariable UUID excelId,@RequestParam(required =false) String version){
-        return ResponseEntity.ok(processedRowService.getRowsByExcelId(excelId,version));
+    public ResponseEntity<List<ProcessedRowDTO>> getAllRows(
+            @PathVariable UUID excelId,
+            @RequestParam(required = false) String version) {
+        return ResponseEntity.ok(processedRowService.getRowsByExcelId(excelId, version));
     }
 
     @GetMapping("/{excelId}/raw")
-    public ResponseEntity<List<processedrows>> getRawRows(@PathVariable UUID excelId){
-        return ResponseEntity.ok(processedRowService.getRowsByVersion(excelId,"raw"));
+    public ResponseEntity<List<ProcessedRowDTO>> getRawRows(@PathVariable UUID excelId) {
+        return ResponseEntity.ok(processedRowService.getRowsByExcelId(excelId, "raw"));
     }
 
-
     @GetMapping("/{excelId}/cleaned")
-    public ResponseEntity<List<processedrows>> getCleanedRows(@PathVariable UUID excelId){
-        return ResponseEntity.ok(processedRowService.getRowsByVersion(excelId,"cleaned"));
+    public ResponseEntity<List<ProcessedRowDTO>> getCleanedRows(@PathVariable UUID excelId) {
+        return ResponseEntity.ok(processedRowService.getRowsByExcelId(excelId, "cleaned"));
     }
 }

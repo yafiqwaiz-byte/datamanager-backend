@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import dev.waiz.datamanager.dto.ProcessedRowDTO;
 import dev.waiz.datamanager.model.exceldata;
 import dev.waiz.datamanager.model.processedrows;
 import dev.waiz.datamanager.repository.ExcelDataRepository;
@@ -27,7 +28,9 @@ public class ProcessedRowService {
     private final ExcelDataRepository excelDataRepository;
     private final ObjectMapper objectMapper;
 
-    public List<processedrows> saveProcessedRows(UUID excelId) throws Exception {
+    
+
+    public List<ProcessedRowDTO> saveProcessedRows(UUID excelId) throws Exception {
 
         exceldata excel = excelDataRepository.findById(excelId)
                 .orElseThrow(() -> new RuntimeException("Excel data not found: " + excelId));
@@ -81,21 +84,28 @@ public class ProcessedRowService {
             savedRows.add(cleanedRow);
         }
 
-        return processedRowsRepository.saveAll(savedRows);
+        List<processedrows> saved = processedRowsRepository.saveAll(savedRows);
+        return saved.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
-    public List<processedrows> getRowsByExcelId(UUID excelId,String dataVersion) {
-        if (dataVersion != null) {
-             return processedRowsRepository.findByExcel_ExcelIdAndDataVersion(excelId, dataVersion);
-        }
-       return processedRowsRepository.findByExcel_ExcelId(excelId);
-}
-
-    public List<processedrows> getRowsByVersion(UUID excelId, String version) {
-        return processedRowsRepository
-                .findByExcel_ExcelIdAndDataVersion(excelId, version);
+    public List<ProcessedRowDTO> getRowsByExcelId(UUID excelId,String dataVersion) {
+        List<processedrows> rows = (dataVersion != null)
+        ? processedRowsRepository.findByExcel_ExcelIdAndDataVersion(excelId,dataVersion):processedRowsRepository.findByExcel_ExcelId(excelId);
+        return rows.stream().map(this::toDTO).collect(Collectors.toList());
     }
-        
+
+
+    private ProcessedRowDTO toDTO(processedrows row){
+        ProcessedRowDTO dto = new ProcessedRowDTO();
+        dto.setRowId(row.getRowId());
+        dto.setExcelId(row.getExcel().getExcelId());
+        dto.setRowIndex(row.getRowIndex());
+        dto.setRowData(row.getRowData());
+        dto.setDataVersion(row.getDataVersion());
+        dto.setCreatedAt(row.getCreatedAt());
+        return dto;
+    }
+
 
     // ─── Missing Values ────────────────────────────────────────────
     private Map<String, String> handleMissingValues(
@@ -491,4 +501,6 @@ public class ProcessedRowService {
         }
         return medians;
     }
+
+    
 }

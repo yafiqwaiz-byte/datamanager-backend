@@ -109,7 +109,8 @@ public class DataPreprocessingService {
     private void validateHeaders(List<String> headers){
         for(int i=0;i < headers.size();i++){
             if(headers.get(i).isEmpty()){
-                log.warn("Empty header detected at column index {}", i);
+               throw new IllegalArgumentException(
+                "Empty header detected at column index " + i + ". Please ensure all columns have headers.");
             }
         }
     

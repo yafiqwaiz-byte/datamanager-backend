@@ -40,7 +40,7 @@ public class LetterController {
     private final LetterGeneratorService letterGeneratorService;
 
 
-    @PostMapping("/template/upload")
+    @PostMapping("/templates/upload")
     public ResponseEntity<?> uploadTemplate(@RequestParam UUID staffId,@RequestParam String templateName,@RequestParam MultipartFile file){
         try {
             lettertemplate template = templateUploadService.uploadTemplate(staffId,templateName,file);
@@ -49,6 +49,36 @@ public class LetterController {
             return ResponseEntity.badRequest().body("Template upload failed: " + e.getMessage());
         }
     }
+
+    @GetMapping("/templates/preview/{templateId}")
+    public ResponseEntity<?> previewTemplate(@PathVariable UUID templateId) {
+        try {
+            lettertemplate template = templateUploadService
+            .getAllTemplates()
+            .stream()
+            .filter(t -> t.getLetterTemplateId().equals(templateId))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Template not found"));
+
+            String html = templateUploadService.convertToHtml(template.getFilePath());
+            return ResponseEntity.ok(Map.of("html",html));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body("Preview failed:"+ e.getMessage());
+        }
+    }
+
+    @PostMapping("/templates/placeholders/{templateId}")
+    public ResponseEntity<?> savePlaceholders (
+        @PathVariable UUID templateId,@RequestBody List<Map<String,String>> placeholderMappings) {
+            try {
+                lettertemplate template = templateUploadService.savePlaceholders(templateId,placeholderMappings);
+                return ResponseEntity.ok(template);
+            } catch (Exception e) {
+                return ResponseEntity.badRequest().body("Failed to save placeholders:" + e.getMessage());
+            }
+        }
+    
 
     @GetMapping("/templates/all")
     public ResponseEntity<List<lettertemplate>> getAllTemplates(){

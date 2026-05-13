@@ -27,7 +27,8 @@ public class LetterGeneratorService {
     private final GeneratedLetterRepository generatedLetterRepository;
     private final ObjectMapper objectMapper;
 
-    private static final String GENERATED_DIR = "uploads/generated_letters/";
+    private static final String GENERATED_DIR = System.getProperty("user.home") 
+    + "/datamanager/uploads/generated/";
 
     public generatedletter generateLetter(UUID mappingId) throws Exception {
         
