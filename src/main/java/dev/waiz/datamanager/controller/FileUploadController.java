@@ -16,13 +16,13 @@ import dev.waiz.datamanager.model.ocrresult;
 import dev.waiz.datamanager.service.FileUploadService;
 
 @RestController
-@RequestMapping("/api/ocr")
+@RequestMapping("/api/files")
 public class FileUploadController {
 
     @Autowired
     private FileUploadService fileUploadService;
 
-    @PostMapping(value = "/upload",consumes = "multipart/form-data")
+    @PostMapping(value = "/ocr/upload",consumes = "multipart/form-data")
     public ResponseEntity<?> uploadAndProcess(@RequestParam("file") MultipartFile file){
         try {
             ocrresult result = fileUploadService.uploadAndProcess(file);
@@ -36,6 +36,17 @@ public class FileUploadController {
     public ResponseEntity<List<fileupload>> getMyUploads(){
         return ResponseEntity.ok(fileUploadService.getUserUploads());
     }
+
+    @PostMapping(value = "/excel/upload", consumes = "multipart/form-data")
+    public ResponseEntity<?> uploadExcel(@RequestParam("file") MultipartFile file){
+        try{
+            fileupload upload = fileUploadService.saveExcelUpload(file);
+            return ResponseEntity.ok(upload);
+        } catch (Exception e){
+            return ResponseEntity.status(500).body("Excel file upload failed:" +e.getMessage());
+        }
+    }
+    
 
 
 }

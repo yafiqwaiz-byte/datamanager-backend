@@ -24,7 +24,7 @@ public class DataPreprocessingController {
     
     private final DataPreprocessingService dataPreprocessingService;
 
-    @PostMapping("/process/{uploadId}")
+    @PostMapping("/upload/{uploadId}")
     public ResponseEntity<?> processData(@PathVariable UUID uploadId,@RequestParam("file") MultipartFile file){
         try {
             exceldata result = dataPreprocessingService.processExcelData(uploadId, file);

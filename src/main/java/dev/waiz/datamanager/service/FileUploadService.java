@@ -1,5 +1,6 @@
 package dev.waiz.datamanager.service;
 
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,10 +18,12 @@ import org.springframework.web.multipart.MultipartFile;
 import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.model.fileupload;
 import dev.waiz.datamanager.model.ocrresult;
+import dev.waiz.datamanager.model.staff;
 import dev.waiz.datamanager.model.user;
 import dev.waiz.datamanager.repository.FileUploadRepository;
 import dev.waiz.datamanager.repository.OcrResultRepository;
 import dev.waiz.datamanager.repository.accountrepository;
+import dev.waiz.datamanager.repository.staffrepository;
 import dev.waiz.datamanager.repository.userrepository;
 
 @Service
@@ -40,6 +43,9 @@ public class FileUploadService {
 
     @Autowired
     private accountrepository accountrepository;
+
+    @Autowired
+    private staffrepository staffrepository;
 
     private final String uploadDir = "uploads/ocr-files/";
 
@@ -89,6 +95,34 @@ public class FileUploadService {
 
         return result;
     }
+
+    public fileupload saveExcelUpload(MultipartFile file) throws IOException{
+
+        String username = SecurityContextHolder.getContext()
+                          .getAuthentication().getName();
+        account acc = accountrepository.findByUsername(username)
+                      .orElseThrow(() -> new RuntimeException("Account not found"));
+        staff currentStaff = staffrepository.findByAccount_AccountId(acc.getAccountId()).orElseThrow(() -> new RuntimeException("Staff not found."));
+
+        String originName = file.getOriginalFilename();
+        String extension = originName!= null && originName.contains(".") ? originName.substring(originName.lastIndexOf(".")):"";
+
+        String filename = UUID.randomUUID() + extension;
+        Path savepath = Paths.get(uploadDir + filename);
+        Files.createDirectories(savepath.getParent());
+        Files.write(savepath,file.getBytes());
+
+        fileupload upload = new fileupload();
+        upload.setStaff(currentStaff);
+        upload.setFileName(originName);
+        upload.setFileType(file.getContentType());
+        upload.setFilePath(uploadDir+filename);
+        upload.setUploadedAt(OffsetDateTime.now());
+
+        return fileUploadRepository.save(upload);
+    }
+
+
 
     public List<fileupload> getUserUploads() {
         String username = SecurityContextHolder.getContext()
