@@ -196,17 +196,20 @@ public class FormSubmissionService {
         
 }
 
-    public List<SubmissionResponseDTO> getAllSubmissions(){
+    public Page<SubmissionResponseDTO> getAllSubmissions(int page,int size){
         String username = SecurityContextHolder.getContext()
         .getAuthentication().getName();
 
         staff currentstaff = staffrepository.findByAccount_Username(username)
         .orElseThrow(() -> new RuntimeException("Staff not found"));
 
-        return formTemplateRepository.findByStaff(currentstaff).stream()
-            .flatMap(template ->
-                formSubmissionRepository.findByTemplate_TemplateId(template.getTemplateId())
-                .stream()
+        Pageable pageable = PageRequest.of(page,size,Sort.by("submittedAt").descending());
+
+        List<formtemplate> templates = formTemplateRepository.findByStaff(currentstaff);
+        List<UUID> templateIds = templates.stream()
+                                 .map(formtemplate::getTemplateId).collect(Collectors.toList());
+
+        return formSubmissionRepository.findByTemplate_TemplateIdIn(templateIds,pageable)
                 .map(submission -> new SubmissionResponseDTO(
                      submission.getSubmissionId(),
                      submission.getTemplate().getTemplateName(),
@@ -220,9 +223,7 @@ public class FormSubmissionService {
                              answer.getAnswerValue()
                         ))
                         .collect(Collectors.toList())
-                ))
-            )
-            .collect(Collectors.toList());
+                ));        
 }
 
 }

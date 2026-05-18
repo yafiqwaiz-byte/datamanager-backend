@@ -12,4 +12,6 @@ import dev.waiz.datamanager.model.user;
 public interface FormSubmissionRepository extends JpaRepository<formsubmission,UUID>{
           Page<formsubmission> findByUser(user user,Pageable pageable);
           List<formsubmission> findByTemplate_TemplateId(UUID templateId);
+
+        Page<formsubmission> findByTemplate_TemplateIdIn(List<UUID> templateIds,Pageable pageable);
 }
