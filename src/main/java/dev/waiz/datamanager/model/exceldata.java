@@ -1,10 +1,15 @@
 package dev.waiz.datamanager.model;
 
 import java.time.OffsetDateTime;
+
 import java.util.UUID;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -27,14 +32,16 @@ public class exceldata {
     @Column(name = "excel_id")
     private UUID excelId;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "upload_id")
     private fileupload upload;
 
     @Column(name = "column_headers",columnDefinition = "jsonb")
-    private String columnHeader;
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String columnHeaders;
 
     @Column(name = "row_data",columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String rowData;
 
     @Column(name = "row_count")

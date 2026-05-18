@@ -6,6 +6,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -88,10 +92,11 @@ public class ProcessedRowService {
         return saved.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
-    public List<ProcessedRowDTO> getRowsByExcelId(UUID excelId,String dataVersion) {
-        List<processedrows> rows = (dataVersion != null)
-        ? processedRowsRepository.findByExcel_ExcelIdAndDataVersion(excelId,dataVersion):processedRowsRepository.findByExcel_ExcelId(excelId);
-        return rows.stream().map(this::toDTO).collect(Collectors.toList());
+    public Page<ProcessedRowDTO> getRowsByExcelId(UUID excelId,String dataVersion, int page,int size) {
+        Pageable pageable = PageRequest.of(page, size,Sort.by("rowIndex").ascending());
+
+        Page<processedrows> rows = processedRowsRepository.findByExcel_ExcelIdAndDataVersion(excelId,dataVersion,pageable);
+        return rows.map(this::toDTO);
     }
 
 

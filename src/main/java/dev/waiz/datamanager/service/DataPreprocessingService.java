@@ -79,7 +79,7 @@ public class DataPreprocessingService {
 
         exceldata data = new exceldata();
         data.setUpload(upload);
-        data.setColumnHeader(headersJson);
+        data.setColumnHeaders(headersJson);
         data.setRowData(rowJson);
         data.setRowCount(rows.size());
         data.setProcessedAt(OffsetDateTime.now());

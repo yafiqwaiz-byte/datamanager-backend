@@ -3,6 +3,7 @@ package dev.waiz.datamanager.controller;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,20 +33,16 @@ public class ProcessedRowsController {
         }
     }
 
-    @GetMapping("/{excelId}/all")
-    public ResponseEntity<List<ProcessedRowDTO>> getAllRows(
-            @PathVariable UUID excelId,
-            @RequestParam(required = false) String version) {
-        return ResponseEntity.ok(processedRowService.getRowsByExcelId(excelId, version));
-    }
+    @GetMapping("/{excelId}/rows")
+    public ResponseEntity<Page<ProcessedRowDTO>> getRows(@PathVariable UUID excelId,
+            @RequestParam(defaultValue = "cleaned") String dataVersion,
+            @RequestParam(defaultValue = "0")
+            int page,
+            @RequestParam(defaultValue = "10")
+            int size){
+            
+        return ResponseEntity.ok(processedRowService.getRowsByExcelId(excelId, dataVersion, page, size));  
+            }
 
-    @GetMapping("/{excelId}/raw")
-    public ResponseEntity<List<ProcessedRowDTO>> getRawRows(@PathVariable UUID excelId) {
-        return ResponseEntity.ok(processedRowService.getRowsByExcelId(excelId, "raw"));
-    }
 
-    @GetMapping("/{excelId}/cleaned")
-    public ResponseEntity<List<ProcessedRowDTO>> getCleanedRows(@PathVariable UUID excelId) {
-        return ResponseEntity.ok(processedRowService.getRowsByExcelId(excelId, "cleaned"));
-    }
 }
