@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -54,7 +55,7 @@ public class FormSubmissionController {
     }
 
     @GetMapping("/my-submissions")
-    public ResponseEntity<List<SubmissionResponseDTO>> getMySubmissions() {
-        return ResponseEntity.ok(formSubmissionService.getMySubmissions());
+    public ResponseEntity<Page<SubmissionResponseDTO>> getMySubmissions(@RequestParam(defaultValue = "0")int page,@RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(formSubmissionService.getMySubmissions(page,size));
     }
 }

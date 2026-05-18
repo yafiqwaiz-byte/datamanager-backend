@@ -2,6 +2,10 @@ package dev.waiz.datamanager.service;
 
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MultiValueMap;
@@ -164,7 +168,7 @@ public class FormSubmissionService {
 
    
 
-    public List<SubmissionResponseDTO> getMySubmissions() {
+    public Page<SubmissionResponseDTO> getMySubmissions(int page,int size) {
     String username = SecurityContextHolder.getContext()
         .getAuthentication().getName();
     account account = accountRepository.findByUsername(username)
@@ -172,7 +176,9 @@ public class FormSubmissionService {
     user user = userRepository.findByAccount_AccountId(account.getAccountId())
         .orElseThrow(() -> new RuntimeException("User not found"));
 
-    return formSubmissionRepository.findByUser(user).stream()
+    Pageable pageable = PageRequest.of(page, size, Sort.by("submittedAt").descending());
+
+    return formSubmissionRepository.findByUser(user,pageable)
         .map(submission -> new SubmissionResponseDTO(
             submission.getSubmissionId(),
             submission.getTemplate().getTemplateName(),
@@ -186,8 +192,8 @@ public class FormSubmissionService {
                     answer.getAnswerValue()
                 ))
                 .collect(Collectors.toList())
-        ))
-        .collect(Collectors.toList());
+        ));
+        
 }
 
     public List<SubmissionResponseDTO> getAllSubmissions(){
