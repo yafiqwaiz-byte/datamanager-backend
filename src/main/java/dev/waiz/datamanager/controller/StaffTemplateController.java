@@ -51,17 +51,18 @@ public class StaffTemplateController {
         return ResponseEntity.ok(formTemplateService.getTemplateById(id));
     }
 
-    // ✅ From FormTemplateController — get submissions for a template
-    @GetMapping("/{id}/submissions")
-    public ResponseEntity<List<SubmissionResponseDTO>> getSubmissions(@PathVariable UUID id) {
-        return ResponseEntity.ok(formSubmissionService.getSubmissionsByTemplate(id));
-    }
-
-    // ✅ From StaffTemplateController — get all submissions across all staff templates
+      // ✅ From StaffTemplateController — get all submissions across all staff templates
     @GetMapping("/submissions/all")
     public ResponseEntity<Page<SubmissionResponseDTO>> getAllSubmissions(@RequestParam(defaultValue = "0")int page,@RequestParam(defaultValue = "10")int size) {
         return ResponseEntity.ok(formSubmissionService.getAllSubmissions(page,size));
     }
+
+    // ✅ From FormTemplateController — get submissions for a template
+    @GetMapping("/{id}/submissions")
+    public ResponseEntity<Page<SubmissionResponseDTO>> getSubmissions(@PathVariable UUID id,@RequestParam(defaultValue = "0" ) int page,@RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(formSubmissionService.getSubmissionsByTemplate(id,page,size));
+    }
+
 
     // ✅ Create template
     @PostMapping

@@ -17,7 +17,7 @@ public class staff {
     @Column(name = "staff_id", updatable = false, nullable = false)
     private UUID staffId;
 
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "account_id", referencedColumnName = "account_id")     
     private account account;
 

@@ -12,18 +12,13 @@ import org.springframework.stereotype.Service;
 
 
 import dev.waiz.datamanager.dto.TemplateRequestDTO;
-import dev.waiz.datamanager.dto.AnswerResponseDTO;
 import dev.waiz.datamanager.dto.FormFieldDTO;
 import dev.waiz.datamanager.dto.FormTemplateDTO;
-import dev.waiz.datamanager.dto.SubmissionResponseDTO;
-import dev.waiz.datamanager.model.formanswer;
 import dev.waiz.datamanager.model.formfield;
-import dev.waiz.datamanager.model.formsubmission;
 import dev.waiz.datamanager.model.formtemplate;
 import dev.waiz.datamanager.model.staff;
 import dev.waiz.datamanager.repository.FormAnswerRepository;
 import dev.waiz.datamanager.repository.FormFieldRepository;
-import dev.waiz.datamanager.repository.FormSubmissionRepository;
 import dev.waiz.datamanager.repository.formtemplaterepository;
 import dev.waiz.datamanager.repository.staffrepository;
 import jakarta.transaction.Transactional;
@@ -44,9 +39,6 @@ public class FormTemplateService {
 
     @Autowired
     private FormAnswerRepository formanswerrepository;
-
-    @Autowired
-    private FormSubmissionRepository formsubmissionrepository;
 
 
 
@@ -221,39 +213,5 @@ public class FormTemplateService {
         dto.setPlaceholder(f.getPlaceholder());
         return dto;
     }
-
-    private AnswerResponseDTO toAnswerDTO(formanswer a){
-        AnswerResponseDTO dto = new AnswerResponseDTO();
-        dto.setAnswerId(a.getAnswerId());
-        dto.setFieldLabel(a.getField().getFieldLabel());
-        dto.setAnswerValue(a.getAnswerValue());
-        return dto;
-    }
-
-    public List<SubmissionResponseDTO> getSubmissionsByTemplateId(UUID templateId){
-        return formsubmissionrepository.findByTemplate_TemplateId(templateId)
-        .stream()
-        .map(this::toSubmissionDTO)
-        .collect(Collectors.toList());
-
-    }
-
-    private SubmissionResponseDTO toSubmissionDTO(formsubmission submit){
-        SubmissionResponseDTO dto = new SubmissionResponseDTO();
-        dto.setSubmissionId(submit.getSubmissionId());
-        dto.setTemplateName(submit.getTemplate().getTemplateName());
-        dto.setInputMethod(submit.getInputMethod());
-        dto.setSubmittedAt(submit.getSubmittedAt());
-        dto.setStatus(submit.getStatus());
-        dto.setAnswers(
-            submit.getAnswers()!= null? submit.getAnswers().stream()
-            .map(this::toAnswerDTO)
-            .collect(Collectors.toList())
-            :List.of()
-        );
-        return dto;
-    }
-
- 
 
 }

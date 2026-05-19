@@ -3,6 +3,7 @@ package dev.waiz.datamanager.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -27,7 +28,7 @@ import dev.waiz.datamanager.repository.accountrepository;
 import dev.waiz.datamanager.repository.formtemplaterepository;
 import dev.waiz.datamanager.repository.staffrepository;
 import dev.waiz.datamanager.repository.userrepository;
-
+import jakarta.transaction.Transactional;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -147,8 +148,49 @@ public class FormSubmissionService {
         return submission.getSubmissionId();
     }
 
-    public List<SubmissionResponseDTO> getSubmissionsByTemplate(UUID templateId){
-        return formSubmissionRepository.findByTemplate_TemplateId(templateId).stream()
+
+    @Transactional
+    public Page<SubmissionResponseDTO> getSubmissionsByTemplate(UUID templateId,int page,int size){
+        Pageable pageable = PageRequest.of(page, size,Sort.by("submittedAt").descending());
+
+        List<formsubmission> submission = formSubmissionRepository.findByTemplateIdWithAnswers(templateId,pageable);
+        long total = formSubmissionRepository.countByTemplate_TemplateId(templateId);
+
+       List<SubmissionResponseDTO> dtos = submission.stream()
+       .map(submit -> new SubmissionResponseDTO(
+            submit.getSubmissionId(),
+            submit.getTemplate().getTemplateName(),
+            submit.getInputMethod(),
+            submit.getSubmittedAt(),
+            submit.getStatus(),
+            submit.getAnswers().stream()
+                .map(answer -> new AnswerResponseDTO(
+                    answer.getAnswerId(),
+                    answer.getField().getFieldLabel(),
+                    answer.getAnswerValue()
+                ))
+                .collect(Collectors.toList())
+        ))
+        .collect(Collectors.toList());
+        return new PageImpl<>(dtos,pageable,total);
+    }
+
+   
+    @Transactional
+    public Page<SubmissionResponseDTO> getMySubmissions(int page,int size) {
+    String username = SecurityContextHolder.getContext()
+        .getAuthentication().getName();
+    account account = accountRepository.findByUsername(username)
+        .orElseThrow(() -> new RuntimeException("Account not found"));
+    user user = userRepository.findByAccount_AccountId(account.getAccountId())
+        .orElseThrow(() -> new RuntimeException("User not found"));
+
+    Pageable pageable = PageRequest.of(page, size, Sort.by("submittedAt").descending());
+
+    List<formsubmission> submissions = formSubmissionRepository.findByUserWithAnswers(user,pageable);
+    long total = formSubmissionRepository.countUser(user);
+
+    List<SubmissionResponseDTO> dtos = submissions.stream()
         .map(submission -> new SubmissionResponseDTO(
             submission.getSubmissionId(),
             submission.getTemplate().getTemplateName(),
@@ -164,38 +206,10 @@ public class FormSubmissionService {
                 .collect(Collectors.toList())
         ))
         .collect(Collectors.toList());
-    }
-
-   
-
-    public Page<SubmissionResponseDTO> getMySubmissions(int page,int size) {
-    String username = SecurityContextHolder.getContext()
-        .getAuthentication().getName();
-    account account = accountRepository.findByUsername(username)
-        .orElseThrow(() -> new RuntimeException("Account not found"));
-    user user = userRepository.findByAccount_AccountId(account.getAccountId())
-        .orElseThrow(() -> new RuntimeException("User not found"));
-
-    Pageable pageable = PageRequest.of(page, size, Sort.by("submittedAt").descending());
-
-    return formSubmissionRepository.findByUser(user,pageable)
-        .map(submission -> new SubmissionResponseDTO(
-            submission.getSubmissionId(),
-            submission.getTemplate().getTemplateName(),
-            submission.getInputMethod(),
-            submission.getSubmittedAt(),
-            submission.getStatus(),
-            submission.getAnswers().stream()
-                .map(answer -> new AnswerResponseDTO(
-                    answer.getAnswerId(),
-                    answer.getField().getFieldLabel(),
-                    answer.getAnswerValue()
-                ))
-                .collect(Collectors.toList())
-        ));
-        
+        return new PageImpl<>(dtos,pageable,total);
 }
 
+    @Transactional
     public Page<SubmissionResponseDTO> getAllSubmissions(int page,int size){
         String username = SecurityContextHolder.getContext()
         .getAuthentication().getName();
@@ -209,21 +223,28 @@ public class FormSubmissionService {
         List<UUID> templateIds = templates.stream()
                                  .map(formtemplate::getTemplateId).collect(Collectors.toList());
 
-        return formSubmissionRepository.findByTemplate_TemplateIdIn(templateIds,pageable)
-                .map(submission -> new SubmissionResponseDTO(
-                     submission.getSubmissionId(),
-                     submission.getTemplate().getTemplateName(),
-                     submission.getInputMethod(),
-                     submission.getSubmittedAt(),
-                     submission.getStatus(),
-                     submission.getAnswers().stream()
+        List<formsubmission> submissions = formSubmissionRepository.findByTemplateIdsWithAnswers(templateIds, pageable);
+
+        long total = formSubmissionRepository.countByTemplate_TemplateIdIn(templateIds);
+
+
+       List<SubmissionResponseDTO> dtos = submissions.stream()
+                .map(sub -> new SubmissionResponseDTO(
+                     sub.getSubmissionId(),
+                     sub.getTemplate().getTemplateName(),
+                     sub.getInputMethod(),
+                     sub.getSubmittedAt(),
+                     sub.getStatus(),
+                     sub.getAnswers().stream()
                         .map(answer -> new AnswerResponseDTO(
                              answer.getAnswerId(),
                              answer.getField().getFieldLabel(),
                              answer.getAnswerValue()
                         ))
                         .collect(Collectors.toList())
-                ));        
+                ))
+                .collect(Collectors.toList()); 
+    return new PageImpl<>(dtos,pageable,total);
 }
 
 }

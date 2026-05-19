@@ -31,11 +31,11 @@ public class formsubmission {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID submissionId;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private user user;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "template_id")
     private formtemplate template;
 
@@ -48,7 +48,7 @@ public class formsubmission {
     @Column(name = "status")
     private String status;
 
-    @OneToMany(mappedBy = "submission",cascade = CascadeType.ALL,fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "submission",cascade = CascadeType.ALL,fetch = FetchType.LAZY)
     private List<formanswer> answers;
 
     public formsubmission(user user, formtemplate template, String inputMethod, LocalDateTime submittedAt, String status) {

@@ -7,6 +7,7 @@ import dev.waiz.datamanager.service.accountservice;
 import dev.waiz.datamanager.service.userservice;
 import dev.waiz.datamanager.service.staffservice;
 import dev.waiz.datamanager.util.JwtUtil;
+import jakarta.transaction.Transactional;
 import dev.waiz.datamanager.dto.SigninRequest;
 import dev.waiz.datamanager.dto.SignupUserRequest;
 import dev.waiz.datamanager.dto.SignupStaffRequest;
@@ -46,7 +47,8 @@ public class accountcontroller {
     @Autowired
     private GoogleAuthService googleAuthService;
 
-    // SIGNIN - Authenticate user and return JWT token
+    // SIGNIN - Authenticate user and return JWT 
+    @Transactional
     @PostMapping("/signin")
     public ResponseEntity<?> signin(@RequestBody SigninRequest signinRequest) {
         // Verify credentials
@@ -88,6 +90,7 @@ public class accountcontroller {
     }
 
     // SIGNUP USER - Create user account and profile
+    @Transactional
     @PostMapping("/signup/user")
     public ResponseEntity<?> signupUser(@RequestBody SignupUserRequest signupRequest) {
         // Check if username already exists
@@ -140,6 +143,7 @@ public class accountcontroller {
     }
 
     // SIGNUP STAFF - Create staff account and profile
+    @Transactional
     @PostMapping("/signup/staff")
     public ResponseEntity<?> signupStaff(@RequestBody SignupStaffRequest signupRequest) {
         // Check if username already exists
@@ -183,6 +187,7 @@ public class accountcontroller {
     }
 
     // CREATE - Create a new account
+    @Transactional
     @PostMapping
     public ResponseEntity<?> createAccount(@RequestBody account newAccount) {
         // Check if username already exists
@@ -195,6 +200,7 @@ public class accountcontroller {
 
 
     // GOOGLE SIGN-IN
+@Transactional    
 @PostMapping("/signin/google")
 public ResponseEntity<?> signinWithGoogle(@RequestBody GoogleSignInRequest request) {
     // Verify Google token
@@ -266,6 +272,7 @@ public ResponseEntity<?> signinWithGoogle(@RequestBody GoogleSignInRequest reque
 }
 
 // COMPLETE PROFILE for Google users
+@Transactional
 @PostMapping("/complete-profile/user")
 public ResponseEntity<?> completeUserProfile(@RequestBody CompleteUserProfileRequest request,
                                               @RequestHeader("Authorization") String authHeader) {
@@ -312,6 +319,7 @@ public ResponseEntity<?> completeUserProfile(@RequestBody CompleteUserProfileReq
 }
 
 //COMPLETE PROFILE for Google staff
+@Transactional
 @PostMapping("/complete-profile/staff")
 public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileRequest request,
                                                @RequestHeader("Authorization") String authHeader) {
@@ -355,6 +363,7 @@ public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileR
     }
 }
     // READ - Get all accounts
+    @Transactional
     @GetMapping
     public ResponseEntity<List<account>> getAllAccounts() {
         List<account> accounts = accountService.getAllAccounts();
@@ -362,6 +371,7 @@ public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileR
     }
 
     // READ - Get account by ID
+    @Transactional
     @GetMapping("/{accountId}")
     public ResponseEntity<?> getAccountById(@PathVariable UUID accountId) {
         Optional<account> foundAccount = accountService.getAccountById(accountId);
@@ -371,7 +381,9 @@ public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileR
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
     }
 
+
     // UPDATE - Update account details
+    @Transactional
     @PutMapping("/{accountId}")
     public ResponseEntity<?> updateAccount(@PathVariable UUID accountId, @RequestBody account updatedAccount) {
         account updated = accountService.updateAccount(accountId, updatedAccount);
@@ -392,6 +404,7 @@ public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileR
     }
 
     // UPDATE - Change account status
+    @Transactional
     @PatchMapping("/{accountId}/status")
     public ResponseEntity<?> updateAccountStatus(@PathVariable UUID accountId, @RequestParam String status) {
         account updated = accountService.updateAccountStatus(accountId, status);
@@ -412,6 +425,7 @@ public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileR
     }
 
     // VERIFY - Check username and password (login verification)
+    @Transactional
     @PostMapping("/verify")
     public ResponseEntity<?> verifyCredentials(@RequestBody LoginRequest loginRequest) {
         boolean isValid = accountService.verifyCredentials(loginRequest.username, loginRequest.password);
@@ -421,6 +435,7 @@ public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileR
         }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
     }
+
 
     @GetMapping("/security-question/{username}")
     public ResponseEntity<?> getSecurityQuestion(@PathVariable String username){

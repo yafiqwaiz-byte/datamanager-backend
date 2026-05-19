@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -28,7 +29,7 @@ public class formfield {
     @Column(name = "field_id", updatable = false, nullable = false)
     private UUID fieldId;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "template_id")
     private formtemplate template;
 

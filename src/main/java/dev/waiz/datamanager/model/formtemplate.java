@@ -33,7 +33,7 @@ public class formtemplate {
     @Column(name = "template_id", updatable = false, nullable = false)
     private UUID templateId;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="staff_id")
     private staff staff;
 
@@ -48,7 +48,7 @@ public class formtemplate {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @OneToMany(mappedBy = "template", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "template", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<formfield> fields;
 
 
