@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -34,10 +35,12 @@ public class fieldmapping {
 
     @ManyToOne
     @JoinColumn(name = "ocr_id")
+    @JsonIgnoreProperties({"upload","extractedText","errorLog"})
     private ocrresult ocr;
 
     @ManyToOne
     @JoinColumn(name = "letter_template_id")
+    @JsonIgnoreProperties({"staffId","placeholderData","filePath"})
     private lettertemplate letterTemplate;
 
     @JdbcTypeCode(SqlTypes.JSON)

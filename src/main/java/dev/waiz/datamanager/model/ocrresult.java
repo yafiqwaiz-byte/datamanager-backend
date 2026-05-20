@@ -3,6 +3,8 @@ package dev.waiz.datamanager.model;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -28,8 +30,9 @@ public class ocrresult {
     @Column(name = "ocr_id")
     private UUID ocrId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "upload_id")
+    @JsonIgnoreProperties({"user", "staff"})
     private fileupload upload;
 
     @Column(name = "extracted_text",columnDefinition = "TEXT")

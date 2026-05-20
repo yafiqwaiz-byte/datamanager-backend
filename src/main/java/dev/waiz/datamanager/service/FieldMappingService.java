@@ -47,8 +47,8 @@ public class FieldMappingService {
 
         for(String placeholder : placeholders) {
             String key = placeholder
-                            .replace("{{", "")
-                            .replace("}}", "")
+                            .replace("[", "")
+                            .replace("]", "")
                             .replace("_", " ")
                             .toLowerCase();
 
@@ -61,7 +61,7 @@ public class FieldMappingService {
         mapping.setOcr(ocr);
         mapping.setLetterTemplate(template);
         mapping.setMappedFields(objectMapper.writeValueAsString(mappedFields));
-        mapping.setStatus("PENDING");
+        mapping.setStatus("pending");
         mapping.setCreatedAt(OffsetDateTime.now());
 
         return fieldMappingRepository.save(mapping);
@@ -77,7 +77,7 @@ public class FieldMappingService {
         .orElseThrow(() -> new RuntimeException("Mapping not found:" + mappingId));
 
         mapping.setMappedFields(objectMapper.writeValueAsString(confirmedFields));
-        mapping.setStatus("CONFIRMED");
+        mapping.setStatus("confirmed");
         return fieldMappingRepository.save(mapping);
     }
 

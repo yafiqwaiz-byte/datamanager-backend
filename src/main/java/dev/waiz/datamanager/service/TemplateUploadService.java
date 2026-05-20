@@ -21,6 +21,7 @@ import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell;
 import org.apache.poi.xwpf.usermodel.XWPFTableRow;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.zwobble.mammoth.DocumentConverter;
@@ -29,9 +30,12 @@ import org.apache.poi.xwpf.usermodel.XWPFRun;
 import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import dev.waiz.datamanager.dto.LetterTemplateDTO;
+import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.model.lettertemplate;
 import dev.waiz.datamanager.model.staff;
 import dev.waiz.datamanager.repository.LetterTemplateRepository;
+import dev.waiz.datamanager.repository.accountrepository;
 import dev.waiz.datamanager.repository.staffrepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,16 +47,17 @@ public class TemplateUploadService {
 
     private final LetterTemplateRepository letterTemplateRepository;
     private final staffrepository staffRepository;
+    private final accountrepository accountRepository;
     private final ObjectMapper objectMapper;
 
 
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\[([A-Z_]+)\\]");
 
     public lettertemplate uploadTemplate(UUID staffId, String templateName, MultipartFile file) throws Exception {
-        // Validate staff exists
-        staff staff = staffRepository.findById(staffId)
-            .orElseThrow(() -> new RuntimeException("Staff not found: " + staffId));
-
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        account acc = accountRepository.findByUsername(username)
+                      .orElseThrow(() -> new RuntimeException("Account not found"));
+        staff currenStaff = staffRepository.findByAccount_AccountId(acc.getAccountId()).orElseThrow(() -> new RuntimeException("Staff not found"));             
         // Create upload directory if it doesn't exist
         String uploadDir = System.getProperty("user.home") + "/datamanager/uploads/templatesletter/";
         Files.createDirectories(Paths.get(uploadDir));
@@ -75,7 +80,7 @@ public class TemplateUploadService {
 
         // Create and save template entity
         lettertemplate template = new lettertemplate();
-        template.setStaffId(staff);
+        template.setStaffId(currenStaff);
         template.setTemplateName(templateName);
         template.setFilePath(filePath);
         template.setPlaceholderData(objectMapper.writeValueAsString(placeholders));
@@ -118,9 +123,20 @@ public class TemplateUploadService {
         return letterTemplateRepository.findByStaffId_StaffId(staffId);
     }
 
-    public List<lettertemplate> getAllTemplates() {
-        return letterTemplateRepository.findAll();
+    public List<LetterTemplateDTO> getAllTemplates() {
+        return letterTemplateRepository.findAll()
+        .stream()
+        .map(t -> new LetterTemplateDTO(
+            t.getLetterTemplateId(),
+            t.getTemplateName()
+        ))
+        .toList();
     }
+
+    public lettertemplate getTemplateById(UUID templateId) {
+    return letterTemplateRepository.findById(templateId)
+        .orElseThrow(() -> new RuntimeException("Template not found"));
+}
 
     private void updateDocxWithPlaceholders(String filePath,
                                             List<Map<String,String>> placeholderMappings) throws Exception{

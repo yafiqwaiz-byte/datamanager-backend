@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import dev.waiz.datamanager.dto.LetterTemplateDTO;
 import dev.waiz.datamanager.model.fieldmapping;
 import dev.waiz.datamanager.model.generatedletter;
 import dev.waiz.datamanager.model.lettertemplate;
@@ -50,21 +51,15 @@ public class LetterController {
         }
     }
 
-    @GetMapping("/templates/preview/{templateId}")
+        @GetMapping("/templates/preview/{templateId}")
     public ResponseEntity<?> previewTemplate(@PathVariable UUID templateId) {
         try {
-            lettertemplate template = templateUploadService
-            .getAllTemplates()
-            .stream()
-            .filter(t -> t.getLetterTemplateId().equals(templateId))
-            .findFirst()
-            .orElseThrow(() -> new RuntimeException("Template not found"));
-
+            lettertemplate template = templateUploadService.getTemplateById(templateId);
             String html = templateUploadService.convertToHtml(template.getFilePath());
-            return ResponseEntity.ok(Map.of("html",html));
+            return ResponseEntity.ok(Map.of("html", html));
         } catch (Exception e) {
             return ResponseEntity.badRequest()
-                    .body("Preview failed:"+ e.getMessage());
+                    .body("Preview failed: " + e.getMessage());
         }
     }
 
@@ -81,7 +76,7 @@ public class LetterController {
     
 
     @GetMapping("/templates/all")
-    public ResponseEntity<List<lettertemplate>> getAllTemplates(){
+    public ResponseEntity<List<LetterTemplateDTO>> getAllTemplates(){
         return ResponseEntity.ok(templateUploadService.getAllTemplates());
     }
 

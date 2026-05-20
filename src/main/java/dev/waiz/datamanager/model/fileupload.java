@@ -3,6 +3,8 @@ package dev.waiz.datamanager.model;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -28,12 +30,14 @@ public class fileupload {
     @Column(name = "upload_id")
     private UUID uploadId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id")
+    @JsonIgnoreProperties({"account","hibernateLazyInitializer"})
     private user user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "staff_id")
+    @JsonIgnoreProperties({"account","hibernateLazyInitializer"})
     private staff staff;
 
     @Column(name = "file_name")
