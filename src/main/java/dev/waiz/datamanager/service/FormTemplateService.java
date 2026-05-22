@@ -43,7 +43,18 @@ public class FormTemplateService {
 
 
     public List<FormTemplateDTO> getActiveTemplates(){
-        return formtemplaterepository.findByIsActiveTrue().stream()
+        return formtemplaterepository.findByIsActiveTrue()
+        .stream()
+        .map(this::toDTO)
+        .collect(Collectors.toList());
+    }
+
+    public List<FormTemplateDTO> getActiveTemplatesForStaff(){
+        String username = SecurityContextHolder.getContext()
+                          .getAuthentication().getName();
+        staff currentstaff = staffRepository.findByAccount_Username(username).orElseThrow(() -> new RuntimeException("Staff not found"));
+
+        return formtemplaterepository.findByIsActiveTrueAndStaff(currentstaff).stream()
         .map(this::toDTO)
         .collect(Collectors.toList());  
     }

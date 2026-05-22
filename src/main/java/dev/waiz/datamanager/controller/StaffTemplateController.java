@@ -36,7 +36,7 @@ public class StaffTemplateController {
     // ✅ From FormTemplateController — get all active templates
     @GetMapping
     public ResponseEntity<List<FormTemplateDTO>> getActiveTemplates() {
-        return ResponseEntity.ok(formTemplateService.getActiveTemplates());
+        return ResponseEntity.ok(formTemplateService.getActiveTemplatesForStaff());
     }
 
     // ✅ From StaffTemplateController — get all templates for current staff

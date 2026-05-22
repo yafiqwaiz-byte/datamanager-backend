@@ -11,5 +11,9 @@ public interface formtemplaterepository extends JpaRepository<formtemplate, UUID
 
     List<formtemplate>findByIsActiveTrue();
 
-        List<formtemplate> findByStaff(staff staff);
+    List<formtemplate> findByStaff(staff staff);
+
+    List<formtemplate> findByIsActiveTrueAndStaff(staff staff);
+
+    
 }

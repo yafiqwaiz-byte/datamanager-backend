@@ -3,111 +3,129 @@ package dev.waiz.datamanager.controller;
 import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.model.user;
 import dev.waiz.datamanager.model.staff;
+import dev.waiz.datamanager.model.refreshtoken;
 import dev.waiz.datamanager.service.accountservice;
 import dev.waiz.datamanager.service.userservice;
 import dev.waiz.datamanager.service.staffservice;
+import dev.waiz.datamanager.service.LoginAttemptService;
+import dev.waiz.datamanager.service.RefreshTokenService;
+import dev.waiz.datamanager.util.CookieUtil;
 import dev.waiz.datamanager.util.JwtUtil;
 import jakarta.transaction.Transactional;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import dev.waiz.datamanager.dto.SigninRequest;
 import dev.waiz.datamanager.dto.SignupUserRequest;
 import dev.waiz.datamanager.dto.SignupStaffRequest;
 import dev.waiz.datamanager.dto.AuthResponse;
+import dev.waiz.datamanager.dto.GoogleSignInRequest;
+import dev.waiz.datamanager.dto.CompleteUserProfileRequest;
+import dev.waiz.datamanager.dto.CompleteStaffProfileRequest;
+import dev.waiz.datamanager.dto.ForgotPasswordRequest;
+import dev.waiz.datamanager.service.GoogleAuthService;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import dev.waiz.datamanager.service.GoogleAuthService;
-import dev.waiz.datamanager.dto.GoogleSignInRequest;
-import dev.waiz.datamanager.dto.CompleteUserProfileRequest;
-import dev.waiz.datamanager.dto.ForgotPasswordRequest;
-import dev.waiz.datamanager.dto.CompleteStaffProfileRequest;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 @RestController
 @RequestMapping("/api/accounts")
-@CrossOrigin(origins = "http://localhost:3000") // Allow CORS for all origins (adjust as needed)
+@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class accountcontroller {
 
-    @Autowired
-    private accountservice accountService;
+    @Autowired private accountservice      accountService;
+    @Autowired private userservice         userService;
+    @Autowired private staffservice        staffService;
+    @Autowired private JwtUtil             jwtUtil;
+    @Autowired private GoogleAuthService   googleAuthService;
+    @Autowired private LoginAttemptService loginAttemptService;
+    @Autowired private RefreshTokenService refreshTokenService;
+    @Autowired private CookieUtil          cookieUtil;
 
-    @Autowired
-    private userservice userService;
-
-    @Autowired
-    private staffservice staffService;
-
-    @Autowired
-    private JwtUtil jwtUtil;
-
-    @Autowired
-    private GoogleAuthService googleAuthService;
-
-    // SIGNIN - Authenticate user and return JWT 
+    // ──────────────────────────────────────────────────────────────────
+    //  SIGNIN
+    // ──────────────────────────────────────────────────────────────────
     @Transactional
     @PostMapping("/signin")
-    public ResponseEntity<?> signin(@RequestBody SigninRequest signinRequest) {
-        // Verify credentials
-        boolean isValid = accountService.verifyCredentials(signinRequest.getUsername(), signinRequest.getPassword());
-        if (!isValid) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
+    public ResponseEntity<?> signin(@RequestBody SigninRequest signinRequest,
+                                    HttpServletRequest request,
+                                    HttpServletResponse response) {
+
+        String clientIp = getClientIp(request);
+
+        // ① Rate-limit check
+        if (loginAttemptService.isBlocked(clientIp)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Too many failed login attempts. Please try again in 15 minutes.");
         }
 
-        // Get account details
+        // ② Verify credentials
+        boolean isValid = accountService.verifyCredentials(
+                signinRequest.getUsername(), signinRequest.getPassword());
+
+        if (!isValid) {
+            loginAttemptService.loginFailed(clientIp);
+            int remaining = loginAttemptService.getRemainingAttempts(clientIp);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Invalid credentials. " + remaining + " attempt(s) remaining.");
+        }
+
+        // ③ Load account
         Optional<account> accountOpt = accountService.getAccountByUsername(signinRequest.getUsername());
-        if (!accountOpt.isPresent()) {
+        if (accountOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
         }
 
         account acc = accountOpt.get();
-        
-        // Generate JWT token
-        String token = jwtUtil.generateToken(acc.getUsername(), acc.getRole());
 
-        // Get user or staff details based on role
-        Object userDetails = null;
-        if ("USER".equals(acc.getRole())) {
-            Optional<user> userOpt = userService.getUserByAccountId(acc.getAccountId());
-            userDetails = userOpt.orElse(null);
-        } else if ("STAFF".equals(acc.getRole())) {
-            Optional<staff> staffOpt = staffService.getStaffByAccountId(acc.getAccountId());
-            userDetails = staffOpt.orElse(null);
-        }
+        // ④ Reset rate-limit counter on success
+        loginAttemptService.loginSucceeded(clientIp);
 
-        // Return auth response with token
-        AuthResponse response = AuthResponse.builder()
-                .token(token)
+        // ⑤ Issue tokens
+        String accessToken        = jwtUtil.generateToken(acc.getUsername(), acc.getRole());
+        refreshtoken refreshToken = refreshTokenService.createRefreshToken(acc);
+
+        // ⑥ Set httpOnly cookies
+        cookieUtil.addAuthCookies(response, accessToken, refreshToken.getToken());
+
+        // ⑦ Fetch role-specific profile
+        Object userDetails = getRoleDetails(acc);
+
+        // ⑧ Return response — token intentionally omitted from body
+        AuthResponse authResponse = AuthResponse.builder()
                 .username(acc.getUsername())
                 .role(acc.getRole())
                 .user(userDetails != null ? userDetails : acc)
                 .build();
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(authResponse);
     }
 
-    // SIGNUP USER - Create user account and profile
+    // ──────────────────────────────────────────────────────────────────
+    //  SIGNUP USER
+    // ──────────────────────────────────────────────────────────────────
     @Transactional
     @PostMapping("/signup/user")
-    public ResponseEntity<?> signupUser(@RequestBody SignupUserRequest signupRequest) {
-        // Check if username already exists
+    public ResponseEntity<?> signupUser(@RequestBody SignupUserRequest signupRequest,
+                                        HttpServletResponse response) {
+
         if (accountService.usernameExists(signupRequest.getUsername())) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
         }
-
-        // Check if company name already exists
         if (userService.companyNameExists(signupRequest.getCompanyName())) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Company name already exists");
         }
 
         try {
-            // Create account
             account newAccount = new account(
                     signupRequest.getUsername(),
-                    signupRequest.getPassword(), // Will be hashed in service
+                    signupRequest.getPassword(),
                     "USER",
                     "active"
             );
@@ -115,7 +133,6 @@ public class accountcontroller {
             newAccount.setSecurityAnswer(signupRequest.getSecurityAnswer());
             account createdAccount = accountService.createAccount(newAccount);
 
-            // Create user profile
             user newUser = new user(
                     createdAccount,
                     signupRequest.getFullName(),
@@ -125,43 +142,44 @@ public class accountcontroller {
             );
             user createdUser = userService.createUser(newUser);
 
-            // Generate JWT token
-            String token = jwtUtil.generateToken(createdAccount.getUsername(), createdAccount.getRole());
+            String accessToken        = jwtUtil.generateToken(createdAccount.getUsername(), createdAccount.getRole());
+            refreshtoken refreshToken = refreshTokenService.createRefreshToken(createdAccount);
+            cookieUtil.addAuthCookies(response, accessToken, refreshToken.getToken());
 
-            // Return auth response
-            AuthResponse response = AuthResponse.builder()
-                    .token(token)
+            AuthResponse authResponse = AuthResponse.builder()
                     .username(createdAccount.getUsername())
                     .role(createdAccount.getRole())
                     .user(createdUser)
                     .build();
 
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            return ResponseEntity.status(HttpStatus.CREATED).body(authResponse);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error creating user: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error creating user: " + e.getMessage());
         }
     }
 
-    // SIGNUP STAFF - Create staff account and profile
+    // ──────────────────────────────────────────────────────────────────
+    //  SIGNUP STAFF
+    // ──────────────────────────────────────────────────────────────────
     @Transactional
     @PostMapping("/signup/staff")
-    public ResponseEntity<?> signupStaff(@RequestBody SignupStaffRequest signupRequest) {
-        // Check if username already exists
+    public ResponseEntity<?> signupStaff(@RequestBody SignupStaffRequest signupRequest,
+                                         HttpServletResponse response) {
+
         if (accountService.usernameExists(signupRequest.getUsername())) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
         }
 
         try {
-            // Create account
             account newAccount = new account(
                     signupRequest.getUsername(),
-                    signupRequest.getPassword(), // Will be hashed in service
+                    signupRequest.getPassword(),
                     "STAFF",
                     "active"
             );
             account createdAccount = accountService.createAccount(newAccount);
 
-            // Create staff profile
             staff newStaff = new staff();
             newStaff.setAccount(createdAccount);
             newStaff.setFullName(signupRequest.getFullName());
@@ -169,28 +187,185 @@ public class accountcontroller {
             newStaff.setPosition(signupRequest.getPosition());
             staff createdStaff = staffService.createStaff(newStaff);
 
-            // Generate JWT token
-            String token = jwtUtil.generateToken(createdAccount.getUsername(), createdAccount.getRole());
+            String accessToken        = jwtUtil.generateToken(createdAccount.getUsername(), createdAccount.getRole());
+            refreshtoken refreshToken = refreshTokenService.createRefreshToken(createdAccount);
+            cookieUtil.addAuthCookies(response, accessToken, refreshToken.getToken());
 
-            // Return auth response
-            AuthResponse response = AuthResponse.builder()
-                    .token(token)
+            AuthResponse authResponse = AuthResponse.builder()
                     .username(createdAccount.getUsername())
                     .role(createdAccount.getRole())
                     .user(createdStaff)
                     .build();
 
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            return ResponseEntity.status(HttpStatus.CREATED).body(authResponse);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error creating staff: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error creating staff: " + e.getMessage());
         }
     }
 
-    // CREATE - Create a new account
+    // ──────────────────────────────────────────────────────────────────
+    //  GOOGLE SIGN-IN
+    // ──────────────────────────────────────────────────────────────────
+    @Transactional
+    @PostMapping("/signin/google")
+    public ResponseEntity<?> signinWithGoogle(@RequestBody GoogleSignInRequest request,
+                                              HttpServletResponse response) {
+
+        GoogleIdToken.Payload payload = googleAuthService.verifyToken(request.getIdToken());
+        if (payload == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid Google token");
+        }
+
+        String email    = payload.getEmail();
+        String fullName = (String) payload.get("name");
+
+        Optional<account> existingAccount = accountService.getAccountByUsername(email);
+
+        if (existingAccount.isPresent()) {
+            // Existing user — sign in and set cookies
+            account acc        = existingAccount.get();
+            Object userDetails = getRoleDetails(acc);
+
+            String accessToken        = jwtUtil.generateToken(acc.getUsername(), acc.getRole());
+            refreshtoken refreshToken = refreshTokenService.createRefreshToken(acc);
+            cookieUtil.addAuthCookies(response, accessToken, refreshToken.getToken());
+
+            AuthResponse authResponse = AuthResponse.builder()
+                    .username(acc.getUsername())
+                    .role(acc.getRole())
+                    .user(userDetails != null ? userDetails : acc)
+                    .newUser(false)
+                    .build();
+
+            return ResponseEntity.ok(authResponse);
+
+        } else {
+            // New Google user — create account, set temp cookie so they can complete profile
+            String role = request.getRole() != null ? request.getRole() : "USER";
+
+            account newAccount = new account(email, "", role, "active");
+            account createdAccount = accountService.createGoogleAccount(newAccount);
+
+            String accessToken        = jwtUtil.generateToken(createdAccount.getUsername(), createdAccount.getRole());
+            refreshtoken refreshToken = refreshTokenService.createRefreshToken(createdAccount);
+            cookieUtil.addAuthCookies(response, accessToken, refreshToken.getToken());
+
+            AuthResponse authResponse = AuthResponse.builder()
+                    .username(createdAccount.getUsername())
+                    .role(createdAccount.getRole())
+                    .user(null)
+                    .newUser(true)
+                    .fullName(fullName)
+                    .email(email)
+                    .build();
+
+            return ResponseEntity.ok(authResponse);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    //  COMPLETE PROFILE — Google user
+    // ──────────────────────────────────────────────────────────────────
+    @Transactional
+    @PostMapping("/complete-profile/user")
+    public ResponseEntity<?> completeUserProfile(@RequestBody CompleteUserProfileRequest request,
+                                                 HttpServletRequest httpRequest) {
+        try {
+            // Read username from cookie-based token (set by JwtAuthFilter in SecurityContext)
+            String username = extractUsernameFromRequest(httpRequest);
+            if (username == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+            }
+
+            Optional<account> accountOpt = accountService.getAccountByUsername(username);
+            if (accountOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
+            }
+
+            account acc = accountOpt.get();
+
+            Optional<user> existingUser = userService.getUserByAccountId(acc.getAccountId());
+            if (existingUser.isPresent()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("Profile already completed");
+            }
+
+            user newUser = new user(
+                    acc,
+                    acc.getUsername().contains("@") ? acc.getUsername().split("@")[0] : acc.getUsername(),
+                    request.getCompanyName(),
+                    request.getPhoneNo(),
+                    request.getCompanyAddress()
+            );
+            user createdUser = userService.createUser(newUser);
+
+            AuthResponse authResponse = AuthResponse.builder()
+                    .username(acc.getUsername())
+                    .role(acc.getRole())
+                    .user(createdUser)
+                    .newUser(false)
+                    .build();
+
+            return ResponseEntity.ok(authResponse);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error completing profile: " + e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    //  COMPLETE PROFILE — Google staff
+    // ──────────────────────────────────────────────────────────────────
+    @Transactional
+    @PostMapping("/complete-profile/staff")
+    public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileRequest request,
+                                                  HttpServletRequest httpRequest) {
+        try {
+            String username = extractUsernameFromRequest(httpRequest);
+            if (username == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+            }
+
+            Optional<account> accountOpt = accountService.getAccountByUsername(username);
+            if (accountOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
+            }
+
+            account acc = accountOpt.get();
+
+            Optional<staff> existingStaff = staffService.getStaffByAccountId(acc.getAccountId());
+            if (existingStaff.isPresent()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("Profile already completed");
+            }
+
+            staff newStaff = new staff();
+            newStaff.setAccount(acc);
+            newStaff.setFullName(acc.getUsername().contains("@") ? acc.getUsername().split("@")[0] : acc.getUsername());
+            newStaff.setDepartment(request.getDepartment());
+            newStaff.setPosition(request.getPosition());
+            staff createdStaff = staffService.createStaff(newStaff);
+
+            AuthResponse authResponse = AuthResponse.builder()
+                    .username(acc.getUsername())
+                    .role(acc.getRole())
+                    .user(createdStaff)
+                    .newUser(false)
+                    .build();
+
+            return ResponseEntity.ok(authResponse);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error completing profile: " + e.getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    //  ACCOUNT CRUD
+    // ──────────────────────────────────────────────────────────────────
+
     @Transactional
     @PostMapping
     public ResponseEntity<?> createAccount(@RequestBody account newAccount) {
-        // Check if username already exists
         if (accountService.usernameExists(newAccount.getUsername())) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
         }
@@ -198,233 +373,53 @@ public class accountcontroller {
         return ResponseEntity.status(HttpStatus.CREATED).body(createdAccount);
     }
 
-
-    // GOOGLE SIGN-IN
-@Transactional    
-@PostMapping("/signin/google")
-public ResponseEntity<?> signinWithGoogle(@RequestBody GoogleSignInRequest request) {
-    // Verify Google token
-    GoogleIdToken.Payload payload = googleAuthService.verifyToken(request.getIdToken());
-    if (payload == null) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid Google token");
-    }
- 
-    String email = payload.getEmail();
-    String fullName = (String) payload.get("name");
- 
-    // Check if account already exists
-    Optional<account> existingAccount = accountService.getAccountByUsername(email);
- 
-    if (existingAccount.isPresent()) {
-        // Existing user - sign in normally
-        account acc = existingAccount.get();
-        Object userDetails = null;
- 
-        if ("USER".equals(acc.getRole())) {
-            Optional<user> userOpt = userService.getUserByAccountId(acc.getAccountId());
-            userDetails = userOpt.orElse(null);
-        } else if ("STAFF".equals(acc.getRole())) {
-            Optional<staff> staffOpt = staffService.getStaffByAccountId(acc.getAccountId());
-            userDetails = staffOpt.orElse(null);
-        }
- 
-        String token = jwtUtil.generateToken(acc.getUsername(), acc.getRole());
- 
-        AuthResponse response = AuthResponse.builder()
-                .token(token)
-                .username(acc.getUsername())
-                .role(acc.getRole())
-                .user(userDetails != null ? userDetails : acc)
-                .newUser(false)
-                .build();
- 
-        return ResponseEntity.ok(response);
- 
-    } else {
-        // New user - create account only, profile to be completed later
-        String role = request.getRole() != null ? request.getRole() : "USER";
- 
-        account newAccount = new account(
-                email,
-                "", // no password for Google users
-                role,
-                "active"
-        );
-        account createdAccount = accountService.createGoogleAccount(newAccount);
- 
-        // Generate token so frontend can make authenticated complete-profile call
-        String token = jwtUtil.generateToken(createdAccount.getUsername(), createdAccount.getRole());
- 
-        // Return isNewUser = true so frontend redirects to complete profile page
-        AuthResponse response = AuthResponse.builder()
-                .token(token)
-                .username(createdAccount.getUsername())
-                .role(createdAccount.getRole())
-                .user(null)
-                .newUser(true)
-                .fullName(fullName)
-                .email(email)
-                .build();
- 
-        return ResponseEntity.ok(response);
-    }
-
-}
-
-// COMPLETE PROFILE for Google users
-@Transactional
-@PostMapping("/complete-profile/user")
-public ResponseEntity<?> completeUserProfile(@RequestBody CompleteUserProfileRequest request,
-                                              @RequestHeader("Authorization") String authHeader) {
-    try {
-        String token = authHeader.substring(7);
-        String username = jwtUtil.extractUsername(token);
- 
-        Optional<account> accountOpt = accountService.getAccountByUsername(username);
-        if (!accountOpt.isPresent()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
-        }
- 
-        account acc = accountOpt.get();
- 
-        // Check if profile already exists
-        Optional<user> existingUser = userService.getUserByAccountId(acc.getAccountId());
-        if (existingUser.isPresent()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("Profile already completed");
-        }
- 
-        // Create user profile with Google name + provided details
-        user newUser = new user(
-                acc,
-                acc.getUsername().contains("@") ? acc.getUsername().split("@")[0] : acc.getUsername(),
-                request.getCompanyName(),
-                request.getPhoneNo(),
-                request.getCompanyAddress()
-        );
-        user createdUser = userService.createUser(newUser);
- 
-        AuthResponse response = AuthResponse.builder()
-                .token(token)
-                .username(acc.getUsername())
-                .role(acc.getRole())
-                .user(createdUser)
-                .newUser(false)
-                .build();
- 
-        return ResponseEntity.ok(response);
-    } catch (Exception e) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error completing profile: " + e.getMessage());
-    }
-}
-
-//COMPLETE PROFILE for Google staff
-@Transactional
-@PostMapping("/complete-profile/staff")
-public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileRequest request,
-                                               @RequestHeader("Authorization") String authHeader) {
-    try {
-        String token = authHeader.substring(7);
-        String username = jwtUtil.extractUsername(token);
- 
-        Optional<account> accountOpt = accountService.getAccountByUsername(username);
-        if (!accountOpt.isPresent()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
-        }
- 
-        account acc = accountOpt.get();
- 
-        // Check if profile already exists
-        Optional<staff> existingStaff = staffService.getStaffByAccountId(acc.getAccountId());
-        if (existingStaff.isPresent()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("Profile already completed");
-        }
- 
-        // Create staff profile
-        staff newStaff = new staff();
-        newStaff.setAccount(acc);
-        newStaff.setFullName(acc.getUsername().contains("@") ? acc.getUsername().split("@")[0] : acc.getUsername());
-        newStaff.setDepartment(request.getDepartment());
-        newStaff.setPosition(request.getPosition());
-        staff createdStaff = staffService.createStaff(newStaff);
- 
-        AuthResponse response = AuthResponse.builder()
-                .token(token)
-                .username(acc.getUsername())
-                .role(acc.getRole())
-                .user(createdStaff)
-                .newUser(false)
-                .build();
- 
-        return ResponseEntity.ok(response);
-    } catch (Exception e) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error completing profile: " + e.getMessage());
-    }
-}
-    // READ - Get all accounts
     @Transactional
     @GetMapping
     public ResponseEntity<List<account>> getAllAccounts() {
-        List<account> accounts = accountService.getAllAccounts();
-        return ResponseEntity.ok(accounts);
+        return ResponseEntity.ok(accountService.getAllAccounts());
     }
 
-    // READ - Get account by ID
     @Transactional
     @GetMapping("/{accountId}")
     public ResponseEntity<?> getAccountById(@PathVariable UUID accountId) {
         Optional<account> foundAccount = accountService.getAccountById(accountId);
-        if (foundAccount.isPresent()) {
-            return ResponseEntity.ok(foundAccount.get());
-        }
+        if (foundAccount.isPresent()) return ResponseEntity.ok(foundAccount.get());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
     }
 
-
-    // UPDATE - Update account details
     @Transactional
     @PutMapping("/{accountId}")
-    public ResponseEntity<?> updateAccount(@PathVariable UUID accountId, @RequestBody account updatedAccount) {
+    public ResponseEntity<?> updateAccount(@PathVariable UUID accountId,
+                                           @RequestBody account updatedAccount) {
         account updated = accountService.updateAccount(accountId, updatedAccount);
-        if (updated != null) {
-            return ResponseEntity.ok(updated);
-        }
+        if (updated != null) return ResponseEntity.ok(updated);
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
     }
 
-    // DELETE - Delete account
     @DeleteMapping("/{accountId}")
     public ResponseEntity<?> deleteAccount(@PathVariable UUID accountId) {
         boolean deleted = accountService.deleteAccount(accountId);
-        if (deleted) {
-            return ResponseEntity.noContent().build();
-        }
+        if (deleted) return ResponseEntity.noContent().build();
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
     }
 
-    // UPDATE - Change account status
     @Transactional
     @PatchMapping("/{accountId}/status")
-    public ResponseEntity<?> updateAccountStatus(@PathVariable UUID accountId, @RequestParam String status) {
+    public ResponseEntity<?> updateAccountStatus(@PathVariable UUID accountId,
+                                                 @RequestParam String status) {
         account updated = accountService.updateAccountStatus(accountId, status);
-        if (updated != null) {
-            return ResponseEntity.ok(updated);
-        }
+        if (updated != null) return ResponseEntity.ok(updated);
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
     }
 
-    // UPDATE - Change account password
     @PatchMapping("/{accountId}/password")
-    public ResponseEntity<?> updateAccountPassword(@PathVariable UUID accountId, @RequestBody PasswordChangeRequest passwordRequest) {
+    public ResponseEntity<?> updateAccountPassword(@PathVariable UUID accountId,
+                                                   @RequestBody PasswordChangeRequest passwordRequest) {
         account updated = accountService.updateAccountPassword(accountId, passwordRequest.newPassword);
-        if (updated != null) {
-            return ResponseEntity.ok("Password updated successfully");
-        }
+        if (updated != null) return ResponseEntity.ok("Password updated successfully");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
     }
 
-    // VERIFY - Check username and password (login verification)
     @Transactional
     @PostMapping("/verify")
     public ResponseEntity<?> verifyCredentials(@RequestBody LoginRequest loginRequest) {
@@ -436,9 +431,8 @@ public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileR
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
     }
 
-
     @GetMapping("/security-question/{username}")
-    public ResponseEntity<?> getSecurityQuestion(@PathVariable String username){
+    public ResponseEntity<?> getSecurityQuestion(@PathVariable String username) {
         try {
             String question = accountService.getSecurityQuestion(username);
             return ResponseEntity.ok(Map.of("securityQuestion", question));
@@ -448,22 +442,67 @@ public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileR
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestBody ForgotPasswordRequest req){
-        try{
+    public ResponseEntity<?> resetPassword(@RequestBody ForgotPasswordRequest req) {
+        try {
             accountService.resetPassword(req);
-            return ResponseEntity.ok(Map.of("message","Password reset successfully"));
-        } catch (RuntimeException e){
+            return ResponseEntity.ok(Map.of("message", "Password reset successfully"));
+        } catch (RuntimeException e) {
             return ResponseEntity.status(404).body(e.getMessage());
         }
     }
 
-    // Helper class for password change
+    // ──────────────────────────────────────────────────────────────────
+    //  Private helpers
+    // ──────────────────────────────────────────────────────────────────
+
+    /** Fetches user or staff profile based on account role */
+    private Object getRoleDetails(account acc) {
+        if ("USER".equals(acc.getRole())) {
+            return userService.getUserByAccountId(acc.getAccountId()).orElse(null);
+        } else if ("STAFF".equals(acc.getRole())) {
+            return staffService.getStaffByAccountId(acc.getAccountId()).orElse(null);
+        }
+        return null;
+    }
+
+    /**
+     * Extracts the username from either:
+     *  - httpOnly cookie token (preferred, set by JwtAuthFilter)
+     *  - Authorization: Bearer header (fallback for Postman)
+     */
+    private String extractUsernameFromRequest(HttpServletRequest request) {
+        // Try cookie first
+        Optional<String> cookieToken = cookieUtil.readCookie(request, CookieUtil.ACCESS_TOKEN_COOKIE);
+        if (cookieToken.isPresent() && jwtUtil.validateToken(cookieToken.get())) {
+            return jwtUtil.extractUsername(cookieToken.get());
+        }
+        // Fallback: Bearer header
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            if (jwtUtil.validateToken(token)) return jwtUtil.extractUsername(token);
+        }
+        return null;
+    }
+
+    /** Resolves the real client IP, handling reverse proxies */
+    private String getClientIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    //  Helper DTOs
+    // ──────────────────────────────────────────────────────────────────
+
     public static class PasswordChangeRequest {
         public String oldPassword;
         public String newPassword;
     }
 
-    // Helper class for login verification
     public static class LoginRequest {
         public String username;
         public String password;
