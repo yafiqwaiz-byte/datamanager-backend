@@ -13,41 +13,22 @@ import dev.waiz.datamanager.model.formsubmission;
 import dev.waiz.datamanager.model.user;
 
 
+
+
 public interface FormSubmissionRepository extends JpaRepository<formsubmission,UUID>{
 
-        @Query("""
-                SELECT DISTINCT s FROM formsubmission s
-                LEFT JOIN FETCH s.answers a
-                LEFT JOIN FETCH a.field
-                WHERE s.user =:user
-                ORDER BY s.submittedAt DESC
-                """)
-        List<formsubmission> findByUserWithAnswers(@Param("user") user user,Pageable pageable);
+    @Query("SELECT f.submissionId FROM formsubmission f WHERE f.user =:user ORDER BY f.submittedAt DESC")
+    Page<UUID> findIdsByUser(@Param("user")user user,Pageable pageable);
 
-        @Query("SELECT COUNT(s) FROM formsubmission s WHERE s.user =:user")
-        long countUser(@Param("user")user user);
+   @Query("SELECT DISTINCT f FROM formsubmission f LEFT JOIN FETCH f.template LEFT JOIN FETCH f.answers a LEFT JOIN FETCH a.field WHERE f.submissionId IN :ids ORDER BY f.submittedAt DESC")
+    List<formsubmission> findByIdsWithAnswers(@Param("ids") List<UUID> ids);
 
-         @Query("""
-        SELECT DISTINCT s FROM formsubmission s
-        LEFT JOIN FETCH s.answers a
-        LEFT JOIN FETCH a.field
-        WHERE s.template.templateId = :templateId
-        ORDER BY s.submittedAt DESC
-        """)
-    List<formsubmission> findByTemplateIdWithAnswers(@Param("templateId") UUID templateId, Pageable pageable);
+    @Query("SELECT f.submissionId FROM formsubmission f WHERE f.template.templateId =:templateId ORDER BY f.submittedAt DESC")
+    Page<UUID> findIdsByTemplateId(@Param("templateId") UUID templateId,Pageable pageable);
 
-    long countByTemplate_TemplateId(UUID templateId);
+    @Query("SELECT f.submissionId FROM formsubmission f WHERE f.template.templateId IN :templateIds ORDER BY f.submittedAt DESC")
+    Page<UUID> findIdsByTemplateIds(@Param("templateIds") List<UUID> templateIds,Pageable pageable);
 
-    @Query("""
-           SELECT DISTINCT s FROM formsubmission s 
-           LEFT JOIN FETCH s.answers a
-           LEFT JOIN FETCH a.field 
-           WHERE s.template.templateId IN :templateIds
-           ORDER BY  s.submittedAt DESC         
-                    """)
-    List<formsubmission> findByTemplateIdsWithAnswers(@Param("templateIds") List<UUID> templateIds,Pageable pageable);
-
-    long countByTemplate_TemplateIdIn(List<UUID> tempalateIds);
 
  
 }

@@ -1,6 +1,7 @@
 package dev.waiz.datamanager.repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -16,4 +17,6 @@ public interface FormFieldRepository extends JpaRepository<formfield,UUID>{
     void deleteByTemplate_TemplateId(UUID templateId);
 
     List<formfield> findByTemplate_TemplateId(UUID templateId);
+
+    Optional<formfield> findByTemplate_TemplateIdAndFieldLabelIgnoreCase(UUID templateId,String fieldLabel);
 }

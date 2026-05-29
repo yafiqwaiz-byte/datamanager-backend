@@ -33,6 +33,7 @@ import jakarta.transaction.Transactional;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -64,12 +65,18 @@ public class FormSubmissionService {
 
     private final String uploadDir= "uploads/form-files/";
 
+    @Transactional
     public UUID saveSubmission(
         UUID templateId,
         String inputMethod,
         Map<String, String> allParams,
         MultiValueMap<String, MultipartFile> allFiles
     ) {
+        // TEMP LOG — remove after debugging
+    System.out.println("=== ALL PARAMS ===");
+    allParams.forEach((k, v) -> System.out.println(k + " = " + v));
+    System.out.println("==================");
+
         // 1. Get logged in user
         String username = SecurityContextHolder.getContext()
             .getAuthentication().getName();
@@ -93,6 +100,9 @@ public class FormSubmissionService {
 
         // 4. Save text/other answers
         allParams.forEach((key, value) -> {
+
+            if (key.equals("templateId") || key.equals("inputMethod")) return;
+
             if (key.startsWith("answer_")) {
                 UUID fieldId = UUID.fromString(key.replace("answer_", ""));
                 formfield field = formFieldRepository.findById(fieldId)
@@ -103,6 +113,25 @@ public class FormSubmissionService {
                 answer.setField(field);
                 answer.setAnswerValue(value);
                 formAnswerRepository.save(answer);
+            } else {
+
+                String cleanKey = key
+                                  .trim()
+                                  .replaceAll("^['^`\"\\-_*#@!]+", "")
+                                  .replaceAll("['^`\"\\-_*#@!]+$", "")
+                                  .replaceAll("\\s+", " ")
+                                  .trim();
+                
+                if(!cleanKey.isEmpty()){
+                formFieldRepository.findByTemplate_TemplateIdAndFieldLabelIgnoreCase(templateId, cleanKey)
+                .ifPresent(field -> {
+                    formanswer answer = new formanswer();
+                    answer.setSubmission(submission);
+                    answer.setField(field);
+                    answer.setAnswerValue(value);
+                    formAnswerRepository.save(answer);
+                });
+            }
             }
         });
 
@@ -153,10 +182,17 @@ public class FormSubmissionService {
     public Page<SubmissionResponseDTO> getSubmissionsByTemplate(UUID templateId,int page,int size){
         Pageable pageable = PageRequest.of(page, size,Sort.by("submittedAt").descending());
 
-        List<formsubmission> submission = formSubmissionRepository.findByTemplateIdWithAnswers(templateId,pageable);
-        long total = formSubmissionRepository.countByTemplate_TemplateId(templateId);
+        Page<UUID> idPage = formSubmissionRepository.findIdsByTemplateId(templateId,pageable);
 
-       List<SubmissionResponseDTO> dtos = submission.stream()
+        List<formsubmission> submissions = idPage.getContent().isEmpty()
+        ? List.of():formSubmissionRepository.findByIdsWithAnswers(idPage.getContent());
+
+        List<UUID> orderedIDs = idPage.getContent();
+        submissions.sort(Comparator.comparingInt(s -> orderedIDs.indexOf(s.getSubmissionId())));
+
+
+
+       List<SubmissionResponseDTO> dtos = submissions.stream()
        .map(submit -> new SubmissionResponseDTO(
             submit.getSubmissionId(),
             submit.getTemplate().getTemplateName(),
@@ -172,7 +208,7 @@ public class FormSubmissionService {
                 .collect(Collectors.toList())
         ))
         .collect(Collectors.toList());
-        return new PageImpl<>(dtos,pageable,total);
+        return new PageImpl<>(dtos,pageable,idPage.getTotalElements());
     }
 
    
@@ -187,8 +223,14 @@ public class FormSubmissionService {
 
     Pageable pageable = PageRequest.of(page, size, Sort.by("submittedAt").descending());
 
-    List<formsubmission> submissions = formSubmissionRepository.findByUserWithAnswers(user,pageable);
-    long total = formSubmissionRepository.countUser(user);
+    Page<UUID> idPage = formSubmissionRepository.findIdsByUser(user, pageable);
+
+    List<formsubmission> submissions = idPage.getContent().isEmpty()
+    ?List.of():formSubmissionRepository.findByIdsWithAnswers(idPage.getContent());
+
+    List<UUID> orderedIds = idPage.getContent();
+    submissions.sort(Comparator.comparingInt(s -> orderedIds.indexOf(s.getSubmissionId())));
+
 
     List<SubmissionResponseDTO> dtos = submissions.stream()
         .map(submission -> new SubmissionResponseDTO(
@@ -206,7 +248,7 @@ public class FormSubmissionService {
                 .collect(Collectors.toList())
         ))
         .collect(Collectors.toList());
-        return new PageImpl<>(dtos,pageable,total);
+        return new PageImpl<>(dtos,pageable,idPage.getTotalElements());
 }
 
     @Transactional
@@ -223,10 +265,17 @@ public class FormSubmissionService {
         List<UUID> templateIds = templates.stream()
                                  .map(formtemplate::getTemplateId).collect(Collectors.toList());
 
-        List<formsubmission> submissions = formSubmissionRepository.findByTemplateIdsWithAnswers(templateIds, pageable);
+        if ( (templateIds.isEmpty())) {
+            return new PageImpl<>(List.of(), pageable, 0);
+        }
 
-        long total = formSubmissionRepository.countByTemplate_TemplateIdIn(templateIds);
+        Page<UUID> idPage = formSubmissionRepository.findIdsByTemplateIds(templateIds,pageable);
 
+        List<formsubmission> submissions = idPage.getContent().isEmpty() ? List.of():formSubmissionRepository.findByIdsWithAnswers(idPage.getContent());
+
+        List<UUID> orderedIds = idPage.getContent();
+        submissions.sort(Comparator.comparingInt(s -> orderedIds.indexOf(s.getSubmissionId())));
+              
 
        List<SubmissionResponseDTO> dtos = submissions.stream()
                 .map(sub -> new SubmissionResponseDTO(
@@ -244,7 +293,7 @@ public class FormSubmissionService {
                         .collect(Collectors.toList())
                 ))
                 .collect(Collectors.toList()); 
-    return new PageImpl<>(dtos,pageable,total);
+    return new PageImpl<>(dtos,pageable,idPage.getTotalElements());
 }
 
 }
