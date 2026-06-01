@@ -36,12 +36,12 @@ public class exceldata {
     @JoinColumn(name = "upload_id")
     private fileupload upload;
 
-    @Column(name = "column_headers",columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "column_headers")
     private String columnHeaders;
 
-    @Column(name = "row_data",columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "row_data")
     private String rowData;
 
     @Column(name = "row_count")

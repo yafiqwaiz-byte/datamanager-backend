@@ -44,7 +44,7 @@ public class fieldmapping {
     private lettertemplate letterTemplate;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "mapped_fields",columnDefinition = "JSONB")
+    @Column(name = "mapped_fields")
     private String mappedFields;
 
     @Column(name = "status")

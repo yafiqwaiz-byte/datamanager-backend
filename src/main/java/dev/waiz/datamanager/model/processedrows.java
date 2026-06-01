@@ -8,6 +8,7 @@ import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -30,7 +31,7 @@ public class processedrows {
     @Column(name = "row_id")
     private UUID rowId;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "excel_id")
     private exceldata excel;
 
@@ -41,7 +42,7 @@ public class processedrows {
     private Integer rowIndex;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "row_data",columnDefinition = "jsonb")
+    @Column(name = "row_data")
     private String rowData;
 
     @Column(name = "created_at")

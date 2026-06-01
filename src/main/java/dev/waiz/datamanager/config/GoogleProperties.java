@@ -3,16 +3,12 @@ package dev.waiz.datamanager.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import lombok.Data;
+
+@Data
 @Component
 @ConfigurationProperties(prefix = "google")
 public class GoogleProperties {
     private String clientId;
-
-    public String getClientId() {
-        return clientId;
-    }
-
-    public void setClientId(String clientId) {
-        this.clientId = clientId;
-    }
+    private String clientSecret;
 }

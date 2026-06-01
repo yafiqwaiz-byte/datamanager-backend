@@ -40,7 +40,7 @@ public class lettertemplate {
     private String filePath;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "placeholder",columnDefinition = "JSONB")
+    @Column(name = "placeholder")
     private String placeholderData; // JSON string to store placeholder keys and example values
 
     @Column(name = "created_at")
