@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -54,6 +55,7 @@ public class SecurityConfig implements WebMvcConfigurer {
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+
                 // ── Public endpoints ───────────────────────────────────
                 .requestMatchers("/api/accounts/signin").permitAll()
                 .requestMatchers("/api/accounts/signin/google").permitAll()
@@ -61,22 +63,47 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .requestMatchers("/api/accounts/signup/staff").permitAll()
                 .requestMatchers("/api/accounts/security-question/**").permitAll()
                 .requestMatchers("/api/accounts/reset-password").permitAll()
-                .requestMatchers("/api/auth/refresh").permitAll()   // token refresh is public
-                .requestMatchers("/api/auth/logout").permitAll() // logout needs valid session
+                .requestMatchers("/api/auth/refresh").permitAll()
+                .requestMatchers("/api/auth/logout").permitAll()
                 .requestMatchers("/uploads/**").permitAll()
 
                 // ── Complete-profile (Google new users) ────────────────
                 .requestMatchers("/api/accounts/complete-profile/**").authenticated()
 
-                // ── Role-protected endpoints ───────────────────────────
-                .requestMatchers("/api/staff/**").hasRole("STAFF")
+                // ── OCR (USER + STAFF) ─────────────────────────────────
+                .requestMatchers("/api/files/ocr/**").hasAnyRole("USER", "STAFF")
                 .requestMatchers("/api/ocr/**").hasAnyRole("USER", "STAFF")
-                .requestMatchers(org.springframework.http.HttpMethod.POST,   "/api/forms/submit").hasRole("USER")
-                .requestMatchers(org.springframework.http.HttpMethod.GET,    "/api/forms/**").authenticated()
-                .requestMatchers(org.springframework.http.HttpMethod.POST,   "/api/forms/templates").hasRole("STAFF")
-                .requestMatchers(org.springframework.http.HttpMethod.PUT,    "/api/forms/templates/**").hasRole("STAFF")
-                .requestMatchers(org.springframework.http.HttpMethod.PATCH,  "/api/forms/templates/**").hasRole("STAFF")
-                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/forms/templates/**").hasRole("STAFF")
+
+                // ── Forms: USER only ───────────────────────────────────
+                .requestMatchers(HttpMethod.POST, "/api/forms/submit").hasRole("USER")
+                .requestMatchers("/api/forms/my-submissions").hasRole("USER")
+                .requestMatchers(HttpMethod.GET, "/api/forms/user-templates").hasAnyRole("USER", "STAFF")
+                .requestMatchers(HttpMethod.GET, "/api/forms/**").hasAnyRole("USER", "STAFF")
+
+                // ── Forms: STAFF only ──────────────────────────────────
+                .requestMatchers(HttpMethod.POST,   "/api/forms/templates").hasRole("STAFF")
+                .requestMatchers(HttpMethod.PUT,    "/api/forms/templates/**").hasRole("STAFF")
+                .requestMatchers(HttpMethod.PATCH,  "/api/forms/templates/**").hasRole("STAFF")
+                .requestMatchers(HttpMethod.DELETE, "/api/forms/templates/**").hasRole("STAFF")
+                .requestMatchers(HttpMethod.GET,    "/api/forms/templates/*/submissions").hasRole("STAFF")
+                .requestMatchers(HttpMethod.GET,    "/api/forms/submissions/all").hasRole("STAFF")
+                .requestMatchers("/api/staff/**").hasRole("STAFF")
+
+                // ── Letters: USER + STAFF (specific endpoints first) ───
+                .requestMatchers(HttpMethod.GET,  "/api/letters/templates/all").hasAnyRole("USER", "STAFF")
+                .requestMatchers(HttpMethod.POST, "/api/letters/mapping/auto").hasAnyRole("USER", "STAFF")
+                .requestMatchers(HttpMethod.PUT,  "/api/letters/mapping/confirm/**").hasAnyRole("USER", "STAFF")
+                .requestMatchers(HttpMethod.POST, "/api/letters/generate/**").hasAnyRole("USER", "STAFF")
+                .requestMatchers(HttpMethod.GET,  "/api/letters/generated/**").hasAnyRole("USER", "STAFF")
+                .requestMatchers(HttpMethod.GET,  "/api/letters/download/**").hasAnyRole("USER", "STAFF")
+                .requestMatchers(HttpMethod.GET, "/api/letters/mapping/**").hasAnyRole("USER", "STAFF")
+                .requestMatchers(HttpMethod.PUT, "/api/letters/mapping/confirm/**").hasAnyRole("USER", "STAFF")
+
+                // ── Letters: STAFF only catch-all ─────────────────────
+                .requestMatchers("/api/letters/**").hasRole("STAFF")
+
+                // ── Everything else: authenticated ─────────────────────
+                .requestMatchers("/api/**").authenticated()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -91,7 +118,7 @@ public class SecurityConfig implements WebMvcConfigurer {
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true); // Required for cookies
+        configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -105,11 +132,6 @@ public class SecurityConfig implements WebMvcConfigurer {
         return new BCryptPasswordEncoder();
     }
 
-    // ══════════════════════════════════════════════════════════════════
-    //  JWT Auth Filter
-    //  Reads access token from httpOnly cookie (falls back to Bearer
-    //  header so Postman / API clients still work during development).
-    // ══════════════════════════════════════════════════════════════════
     @Component
     public static class JwtAuthFilter extends OncePerRequestFilter {
 
@@ -151,11 +173,6 @@ public class SecurityConfig implements WebMvcConfigurer {
             filterChain.doFilter(request, response);
         }
 
-        /**
-         * Token resolution order:
-         *  1. httpOnly cookie  (preferred — browser clients)
-         *  2. Authorization: Bearer header  (fallback — Postman / mobile)
-         */
         private String resolveToken(HttpServletRequest request) {
             // 1. Cookie
             Optional<String> cookieToken =

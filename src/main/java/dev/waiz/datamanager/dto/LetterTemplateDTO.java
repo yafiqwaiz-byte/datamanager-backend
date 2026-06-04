@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class LetterTemplateDTO {
-
-    private UUID lettertemplateId;
+    private UUID letterTemplateId;
     private String templateName;
 }

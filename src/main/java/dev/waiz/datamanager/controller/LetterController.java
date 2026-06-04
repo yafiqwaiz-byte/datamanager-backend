@@ -41,16 +41,19 @@ public class LetterController {
     private final LetterGeneratorService letterGeneratorService;
 
 
-    @PostMapping("/templates/upload")
-    public ResponseEntity<?> uploadTemplate(@RequestParam UUID staffId,@RequestParam String templateName,@RequestParam MultipartFile file){
+   @PostMapping("/templates/upload")
+    public ResponseEntity<?> uploadTemplate(@RequestParam String templateName, @RequestParam MultipartFile file) {
         try {
-            lettertemplate template = templateUploadService.uploadTemplate(staffId,templateName,file);
-            return ResponseEntity.ok(template);
+            lettertemplate template = templateUploadService.uploadTemplate(templateName, file);
+            return ResponseEntity.ok(Map.of(
+                "letterTemplateId", template.getLetterTemplateId(),
+                "templateName", template.getTemplateName(),
+                "filePath", template.getFilePath()
+            ));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Template upload failed: " + e.getMessage());
         }
     }
-
         @GetMapping("/templates/preview/{templateId}")
     public ResponseEntity<?> previewTemplate(@PathVariable UUID templateId) {
         try {
@@ -63,22 +66,43 @@ public class LetterController {
         }
     }
 
-    @PostMapping("/templates/placeholders/{templateId}")
-    public ResponseEntity<?> savePlaceholders (
-        @PathVariable UUID templateId,@RequestBody List<Map<String,String>> placeholderMappings) {
-            try {
-                lettertemplate template = templateUploadService.savePlaceholders(templateId,placeholderMappings);
-                return ResponseEntity.ok(template);
-            } catch (Exception e) {
-                return ResponseEntity.badRequest().body("Failed to save placeholders:" + e.getMessage());
-            }
+       // ✅ Fix — return only what's needed
+        @PostMapping("/templates/placeholders/{templateId}")
+        public ResponseEntity<?> savePlaceholders(
+            @PathVariable UUID templateId,
+            @RequestBody List<Map<String,String>> placeholderMappings) {
+        try {
+            lettertemplate template = templateUploadService.savePlaceholders(templateId, placeholderMappings);
+            return ResponseEntity.ok(Map.of(
+                "letterTemplateId", template.getLetterTemplateId(),
+                "templateName", template.getTemplateName(),
+                "placeholders", template.getPlaceholderData()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Failed to save placeholders:" + e.getMessage());
         }
+    }
     
 
     @GetMapping("/templates/all")
     public ResponseEntity<List<LetterTemplateDTO>> getAllTemplates(){
         return ResponseEntity.ok(templateUploadService.getAllTemplates());
     }
+
+    
+    @GetMapping("/mapping/{mappingId}")
+    public ResponseEntity<?> getMappingById(@PathVariable UUID mappingId) {
+    try {
+        fieldmapping mapping = fieldMappingService.getMappingById(mappingId);
+        return ResponseEntity.ok(Map.of(
+            "mappingId", mapping.getMappingId(),
+            "mappedFields", mapping.getMappedFields(),
+            "status", mapping.getStatus()
+        ));
+    } catch (Exception e) {
+        return ResponseEntity.badRequest().body("Mapping not found: " + e.getMessage());
+    }
+}
 
     @GetMapping("/templates/staff/{staffId}")
     public ResponseEntity<List<lettertemplate>> getTemplatesByStaffId(@PathVariable UUID staffId){
