@@ -44,5 +44,19 @@ public class ProcessedRowsController {
         return ResponseEntity.ok(processedRowService.getRowsByExcelId(excelId, dataVersion, page, size));  
             }
 
+    
+            @GetMapping("/{excelId}/cleaned")
+        public ResponseEntity<?> getCleanedRows(@PathVariable UUID excelId) {
+            try {
+                // ✅ Reuse existing service method with "cleaned" dataVersion
+                Page<ProcessedRowDTO> rows = processedRowService
+                    .getRowsByExcelId(excelId, "cleaned", 0, 10);
+                return ResponseEntity.ok(rows.getContent());
+            } catch (Exception e) {
+                return ResponseEntity.status(500)
+                    .body("Failed to fetch cleaned rows: " + e.getMessage());
+            }
+        }
+
 
 }

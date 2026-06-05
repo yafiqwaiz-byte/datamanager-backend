@@ -6,6 +6,7 @@ import java.nio.file.*;
 import java.time.OffsetDateTime;
 
 import org.apache.poi.xwpf.usermodel.*;
+
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -69,66 +70,147 @@ public class LetterGeneratorService {
 
     private void generateDocx(String templatePath,
                                 Map<String,String> mappedFields,
-                                String outputPath) throws Exception {
+                                String outputPath) throws Exception {try (FileInputStream fis = new FileInputStream(templatePath);
+         XWPFDocument doc = new XWPFDocument(fis)) {
 
-        try (FileInputStream fis = new FileInputStream(templatePath);
-             XWPFDocument doc = new XWPFDocument(fis)) {
-            
-                for (XWPFTable table :doc.getTables()){
-                    for (XWPFTableRow row : table.getRows()){
-                        for (XWPFTableCell cell : row.getTableCells()){
-                            for (XWPFParagraph para : cell.getParagraphs()){
-                                replaceParagraph(para,mappedFields);
+        // ✅ Replace in normal paragraphs
+        for (XWPFParagraph para : doc.getParagraphs()) {
+            String text = para.getRuns().stream()
+                .map(r -> r.getText(0) != null ? r.getText(0) : "")
+                .collect(java.util.stream.Collectors.joining());
+
+            // ✅ Handle [BODY_TEXT] placeholder directly
+            if (text.contains("[BODY_TEXT]") && mappedFields.containsKey("[BODY_TEXT]")) {
+                List<XWPFRun> runs = para.getRuns();
+                if (!runs.isEmpty()) {
+                    runs.get(0).setText(mappedFields.get("[BODY_TEXT]"), 0);
+                    for (int i = 1; i < runs.size(); i++) {
+                        runs.get(i).setText("", 0);
+                    }
+                }
+            } else {
+                replaceParagraph(para, mappedFields);
+            }
+        }
+
+        // ✅ Replace in table cells
+        for (XWPFTable table : doc.getTables()) {
+            for (XWPFTableRow row : table.getRows()) {
+                for (XWPFTableCell cell : row.getTableCells()) {
+                    for (XWPFParagraph para : cell.getParagraphs()) {
+                        String text = para.getRuns().stream()
+                            .map(r -> r.getText(0) != null ? r.getText(0) : "")
+                            .collect(java.util.stream.Collectors.joining());
+
+                        if (text.contains("[BODY_TEXT]") && mappedFields.containsKey("[BODY_TEXT]")) {
+                            List<XWPFRun> runs = para.getRuns();
+                            if (!runs.isEmpty()) {
+                                runs.get(0).setText(mappedFields.get("[BODY_TEXT]"), 0);
+                                for (int i = 1; i < runs.size(); i++) {
+                                    runs.get(i).setText("", 0);
+                                }
                             }
+                        } else {
+                            replaceParagraph(para, mappedFields);
                         }
                     }
                 }
-
-            try (FileOutputStream fos = new FileOutputStream(outputPath)) {
-                doc.write(fos);
             }
-            log.info("Generated DOCX saved at {}", outputPath);
         }
-    }
+
+        try (FileOutputStream fos = new FileOutputStream(outputPath)) {
+            doc.write(fos);
+        }
+        log.info("Generated DOCX saved at {}", outputPath);
+    }}
 
     private void replaceParagraph(XWPFParagraph para,
                                     Map<String,String> mappedFields){
+                                        // Get full paragraph text
+    String fullText = para.getRuns().stream()
+        .map(run -> run.getText(0) != null ? run.getText(0) : "")
+        .collect(java.util.stream.Collectors.joining());
 
-            for (XWPFRun run : para.getRuns()){
-                String text = run.getText(0);
-                if (text == null) continue;
+    if (fullText.trim().isEmpty()) return;
 
-                for (Map.Entry<String,String> entry :mappedFields.entrySet()){
-                    if (text.contains(entry.getKey())) {
-                        text = text.replace(entry.getKey(), entry.getValue());
-                        
-                    }
-                }
-                run.setText(text,0);
-                    
-            }
-    }  
-    
-    private void generatePdf(String docxPath, String pdfPath) throws Exception {
-        // Placeholder for DOCX to PDF conversion logic
-        // This can be implemented using libraries like Apache PDFBox or iText
-        // For simplicity, we will just copy the DOCX file to the PDF path
-       ProcessBuilder pb = new ProcessBuilder(
-                "libreoffice", "--headless", "--convert-to", "pdf",
-                "--outdir", new File(pdfPath).getParent(),
-                docxPath
-        );
-        pb.redirectErrorStream(true);
-        Process process = pb.start();
-        int exitCode = process.waitFor();
+    String updatedText = fullText;
 
-        if (exitCode != 0) {
-           log.error("LibreOffice PDF conversion failed with exit code: {}",exitCode);
-           throw new RuntimeException("Failed to convert DOCX to PDF");
+    // ✅ Also handle direct placeholder replacement e.g. [TARIKH]
+    for (Map.Entry<String, String> entry : mappedFields.entrySet()) {
+        if (updatedText.contains(entry.getKey())) {
+            String value = entry.getValue() != null ? entry.getValue() : "";
+            updatedText = updatedText.replace(entry.getKey(),value)
+            .replaceAll("\\s*:\\s*$", ""); // Remove trailing colon if value is empty
+            log.info("Direct replaced '{}' with '{}'", entry.getKey(), entry.getValue());
         }
-        log.info("Generated PDF saved at {}", pdfPath);
     }
 
+    // ✅ For each placeholder, find matching label in paragraph
+    for (Map.Entry<String, String> entry : mappedFields.entrySet()) {
+        String placeholder = entry.getKey()   // e.g. [NAMA_PEKERJA]
+            .replace("[", "")
+            .replace("]", "")
+            .replace("_", " ")               // → NAMA PEKERJA
+            .toUpperCase();
+
+        String value = entry.getValue() != null ? entry.getValue() : "";
+
+        String normalizedParagraph = fullText.toUpperCase().replaceAll("\\.", "");
+        String normalizedPlaceholder = placeholder.replaceAll("\\.", "");
+
+        if (normalizedParagraph.contains(normalizedPlaceholder) && !fullText.contains(entry.getKey())) {
+            int colonIndex = fullText.indexOf(":");
+            if (colonIndex != -1) {
+                updatedText = fullText.substring(0, colonIndex + 1) + " " + value;
+                log.info("Replaced label '{}' with value '{}'", placeholder, value);
+            }
+        }
+    }
+
+    // ✅ Set updated text into first run, clear others
+    List<XWPFRun> runs = para.getRuns();
+    if (!runs.isEmpty() && !updatedText.equals(fullText)) {
+        runs.get(0).setText(updatedText, 0);
+        for (int i = 1; i < runs.size(); i++) {
+            runs.get(i).setText("", 0);
+        }
+    }
+}  
+    
+    private void generatePdf(String docxPath, String pdfPath) throws Exception {
+    String os = System.getProperty("os.name").toLowerCase();
+    
+    String command;
+    if (os.contains("win")) {
+        // ✅ Windows (local dev)
+        command = "C:\\Program Files\\LibreOffice\\program\\soffice.exe";
+    } else {
+        // ✅ Linux (production)
+        command = "libreoffice";
+    }
+
+    ProcessBuilder pb = new ProcessBuilder(
+        command, "--headless", "--convert-to", "pdf",
+        "--outdir", new File(pdfPath).getParent(),
+        docxPath
+    );
+    pb.redirectErrorStream(true);
+    Process process = pb.start();
+    String output = new String(process.getInputStream().readAllBytes());
+    log.info("LibreOffice output: {}", output);
+
+    int exitCode = process.waitFor();
+    if (exitCode != 0) {
+        log.error("LibreOffice failed: {}", output);
+        throw new RuntimeException("PDF generation failed");
+    }
+    log.info("Generated PDF saved at {}", pdfPath);
+}
+
+public generatedletter getLetterById(UUID letterId) {
+    return generatedLetterRepository.findById(letterId)
+        .orElseThrow(() -> new RuntimeException("Letter not found: " + letterId));
+}
 }
 
 

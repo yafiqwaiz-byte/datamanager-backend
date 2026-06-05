@@ -66,6 +66,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .requestMatchers("/api/auth/refresh").permitAll()
                 .requestMatchers("/api/auth/logout").permitAll()
                 .requestMatchers("/uploads/**").permitAll()
+                .requestMatchers("/favicon.ico").permitAll()
 
                 // ── Complete-profile (Google new users) ────────────────
                 .requestMatchers("/api/accounts/complete-profile/**").authenticated()

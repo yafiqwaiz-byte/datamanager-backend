@@ -53,7 +53,7 @@ public class TemplateUploadService {
 
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\[([A-Z_]+)\\]");
 
-    public lettertemplate uploadTemplate(UUID staffId, String templateName, MultipartFile file) throws Exception {
+    public lettertemplate uploadTemplate( String templateName, MultipartFile file) throws Exception {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         account acc = accountRepository.findByUsername(username)
                       .orElseThrow(() -> new RuntimeException("Account not found"));

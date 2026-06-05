@@ -49,17 +49,7 @@ public class FormTemplateService {
         .collect(Collectors.toList());
     }
 
-    public List<FormTemplateDTO> getActiveTemplatesForStaff(){
-        String username = SecurityContextHolder.getContext()
-                          .getAuthentication().getName();
-        staff currentstaff = staffRepository.findByAccount_Username(username).orElseThrow(() -> new RuntimeException("Staff not found"));
-
-        return formtemplaterepository.findByIsActiveTrueAndStaff(currentstaff).stream()
-        .map(this::toDTO)
-        .collect(Collectors.toList());  
-    }
-
-    public List<FormTemplateDTO> getAllTemplates(){
+    public List<FormTemplateDTO> getAllTemplatesForStaff(){
 
         String username = SecurityContextHolder.getContext()
         .getAuthentication()
@@ -192,7 +182,8 @@ public class FormTemplateService {
         formtemplaterepository.deleteById(id);
     }
 
-    public void toggleActive(UUID id){
+
+    public void toggleTemplate(UUID id){
         formtemplate t=formtemplaterepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Template not found"+id));
         t.setIsActive(!t.getIsActive());

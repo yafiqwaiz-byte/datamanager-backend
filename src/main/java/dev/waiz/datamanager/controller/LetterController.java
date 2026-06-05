@@ -35,13 +35,10 @@ import lombok.RequiredArgsConstructor;
 public class LetterController {
 
     private final TemplateUploadService templateUploadService;
-
     private final FieldMappingService fieldMappingService;
-
     private final LetterGeneratorService letterGeneratorService;
 
-
-   @PostMapping("/templates/upload")
+    @PostMapping("/templates/upload")
     public ResponseEntity<?> uploadTemplate(@RequestParam String templateName, @RequestParam MultipartFile file) {
         try {
             lettertemplate template = templateUploadService.uploadTemplate(templateName, file);
@@ -54,23 +51,22 @@ public class LetterController {
             return ResponseEntity.badRequest().body("Template upload failed: " + e.getMessage());
         }
     }
-        @GetMapping("/templates/preview/{templateId}")
+
+    @GetMapping("/templates/preview/{templateId}")
     public ResponseEntity<?> previewTemplate(@PathVariable UUID templateId) {
         try {
             lettertemplate template = templateUploadService.getTemplateById(templateId);
             String html = templateUploadService.convertToHtml(template.getFilePath());
             return ResponseEntity.ok(Map.of("html", html));
         } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body("Preview failed: " + e.getMessage());
+            return ResponseEntity.badRequest().body("Preview failed: " + e.getMessage());
         }
     }
 
-       // ✅ Fix — return only what's needed
-        @PostMapping("/templates/placeholders/{templateId}")
-        public ResponseEntity<?> savePlaceholders(
-            @PathVariable UUID templateId,
-            @RequestBody List<Map<String,String>> placeholderMappings) {
+    @PostMapping("/templates/placeholders/{templateId}")
+    public ResponseEntity<?> savePlaceholders(
+        @PathVariable UUID templateId,
+        @RequestBody List<Map<String,String>> placeholderMappings) {
         try {
             lettertemplate template = templateUploadService.savePlaceholders(templateId, placeholderMappings);
             return ResponseEntity.ok(Map.of(
@@ -79,90 +75,112 @@ public class LetterController {
                 "placeholders", template.getPlaceholderData()
             ));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Failed to save placeholders:" + e.getMessage());
+            return ResponseEntity.badRequest().body("Failed to save placeholders: " + e.getMessage());
         }
     }
-    
 
     @GetMapping("/templates/all")
-    public ResponseEntity<List<LetterTemplateDTO>> getAllTemplates(){
+    public ResponseEntity<List<LetterTemplateDTO>> getAllTemplates() {
         return ResponseEntity.ok(templateUploadService.getAllTemplates());
     }
 
-    
-    @GetMapping("/mapping/{mappingId}")
-    public ResponseEntity<?> getMappingById(@PathVariable UUID mappingId) {
-    try {
-        fieldmapping mapping = fieldMappingService.getMappingById(mappingId);
-        return ResponseEntity.ok(Map.of(
-            "mappingId", mapping.getMappingId(),
-            "mappedFields", mapping.getMappedFields(),
-            "status", mapping.getStatus()
-        ));
-    } catch (Exception e) {
-        return ResponseEntity.badRequest().body("Mapping not found: " + e.getMessage());
-    }
-}
-
     @GetMapping("/templates/staff/{staffId}")
-    public ResponseEntity<List<lettertemplate>> getTemplatesByStaffId(@PathVariable UUID staffId){
+    public ResponseEntity<?> getTemplatesByStaffId(@PathVariable UUID staffId) {
         return ResponseEntity.ok(templateUploadService.getTemplatesByStaff(staffId));
     }
 
+    @GetMapping("/mapping/{mappingId}")
+    public ResponseEntity<?> getMappingById(@PathVariable UUID mappingId) {
+        try {
+            fieldmapping mapping = fieldMappingService.getMappingById(mappingId);
+            return ResponseEntity.ok(Map.of(
+                "mappingId", mapping.getMappingId(),
+                "mappedFields", mapping.getMappedFields(),
+                "status", mapping.getStatus()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Mapping not found: " + e.getMessage());
+        }
+    }
+
     @PostMapping("/mapping/auto")
-    public ResponseEntity<?> autoMap(@RequestParam UUID ocrId,@RequestParam UUID templateId){
-        try{
-            fieldmapping map = fieldMappingService.autoMap(ocrId,templateId);
-            return ResponseEntity.ok(map);
+    public ResponseEntity<?> autoMap(@RequestParam UUID ocrId, @RequestParam UUID templateId) {
+        try {
+            fieldmapping map = fieldMappingService.autoMap(ocrId, templateId);
+            return ResponseEntity.ok(Map.of(
+                "mappingId", map.getMappingId(),
+                "mappedFields", map.getMappedFields(),
+                "status", map.getStatus()
+            ));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Auto-mapping failed: " + e.getMessage());
         }
-
     }
 
-
     @PutMapping("/mapping/confirm/{mappingId}")
-    public ResponseEntity<?> confirmMapping(@PathVariable UUID mappingId,@RequestBody Map<String,String> correctedField){
-        try{
-            fieldmapping map = fieldMappingService.confirmMapping(mappingId,correctedField);
-            return ResponseEntity.ok(map);
+    public ResponseEntity<?> confirmMapping(
+        @PathVariable UUID mappingId,
+        @RequestBody Map<String,String> correctedField) {
+        try {
+            fieldmapping map = fieldMappingService.confirmMapping(mappingId, correctedField);
+            return ResponseEntity.ok(Map.of(
+                "mappingId", map.getMappingId(),
+                "status", map.getStatus()
+            ));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Mapping confirmation failed: " + e.getMessage());
         }
     }
 
     @PostMapping("/generate/{mappingId}")
-    public ResponseEntity<?> generateLetter(@PathVariable UUID mappingId){
-        try{
+    public ResponseEntity<?> generateLetter(@PathVariable UUID mappingId) {
+        try {
             generatedletter letter = letterGeneratorService.generateLetter(mappingId);
-            return ResponseEntity.ok(letter);
+            return ResponseEntity.ok(Map.of(
+                "letterId", letter.getLetterId(),
+                "docxPath", letter.getDocxPath(),
+                "pdfPath", letter.getPdfPath(),
+                "generatedAt", letter.getGeneratedAt()
+            ));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Letter generation failed: " + e.getMessage());
         }
     }
 
     @GetMapping("/generated/{mappingId}")
-    public ResponseEntity<List<generatedletter>> getGeneratedLetters(@PathVariable UUID mappingId){
-        return ResponseEntity.ok(letterGeneratorService.getLettersByMapping(mappingId));
+    public ResponseEntity<?> getGeneratedLetters(@PathVariable UUID mappingId) {
+        return ResponseEntity.ok(
+            letterGeneratorService.getLettersByMapping(mappingId)
+                .stream()
+                .map(letter -> Map.of(
+                    "letterId", letter.getLetterId(),
+                    "docxPath", letter.getDocxPath(),
+                    "pdfPath", letter.getPdfPath(),
+                    "generatedAt", letter.getGeneratedAt()
+                ))
+                .toList()
+        );
     }
 
+    // ✅ Fixed — find by letterId directly
     @GetMapping("/download/docx/{letterId}")
     public ResponseEntity<Resource> downloadDocx(@PathVariable UUID letterId) throws Exception {
-        generatedletter letter = letterGeneratorService.getLettersByMapping(letterId).get(0);
+        generatedletter letter = letterGeneratorService.getLetterById(letterId);
         Resource resource = new FileSystemResource(letter.getDocxPath());
         return ResponseEntity.ok()
-        .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument"+".wordprocessingml.document"))
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename =letter.docx")
-        .body(resource);
+            .contentType(MediaType.parseMediaType(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=letter.docx")
+            .body(resource);
     }
 
     @GetMapping("/download/pdf/{letterId}")
     public ResponseEntity<Resource> downloadPdf(@PathVariable UUID letterId) throws Exception {
-        generatedletter letter = letterGeneratorService.getLettersByMapping(letterId).get(0);
+        generatedletter letter = letterGeneratorService.getLetterById(letterId);
         Resource resource = new FileSystemResource(letter.getPdfPath());
         return ResponseEntity.ok()
-        .contentType(MediaType.APPLICATION_PDF)
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename =letter.pdf")
-        .body(resource);
+            .contentType(MediaType.APPLICATION_PDF)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=letter.pdf")
+            .body(resource);
     }
 }
