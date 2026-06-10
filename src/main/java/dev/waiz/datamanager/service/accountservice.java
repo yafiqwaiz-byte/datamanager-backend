@@ -139,4 +139,12 @@ public class accountservice {
     public boolean usernameExists(String username) {
         return accountRepository.existsByUsername(username);
     }
+
+    public List<account> getAccountsByStatus(String status){
+        return accountRepository.findByStatus(status);
+    }
+
+    public List<account> getAccountsByRole(String role){
+        return accountRepository.findByRole(role);
+    }
 }

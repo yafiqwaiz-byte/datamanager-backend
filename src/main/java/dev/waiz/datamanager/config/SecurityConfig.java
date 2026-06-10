@@ -68,6 +68,9 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers("/favicon.ico").permitAll()
 
+                //-Admin Only
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                 // ── Complete-profile (Google new users) ────────────────
                 .requestMatchers("/api/accounts/complete-profile/**").authenticated()
 

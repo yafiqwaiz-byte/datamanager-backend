@@ -3,6 +3,8 @@ package dev.waiz.datamanager.repository;
 import dev.waiz.datamanager.model.account;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,10 +17,9 @@ public interface accountrepository extends JpaRepository<account, UUID> {
     // Check if username exists
     boolean existsByUsername(String username);
 
-    
     // Find accounts by role
-    // List<account> findByRole(String role);
+    List<account> findByRole(String role);
     
     // Find accounts by status
-    // List<account> findByStatus(String status);
+    List<account> findByStatus(String status);
 }

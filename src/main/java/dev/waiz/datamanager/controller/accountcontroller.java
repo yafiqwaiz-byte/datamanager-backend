@@ -9,6 +9,7 @@ import dev.waiz.datamanager.service.userservice;
 import dev.waiz.datamanager.service.staffservice;
 import dev.waiz.datamanager.service.LoginAttemptService;
 import dev.waiz.datamanager.service.RefreshTokenService;
+import dev.waiz.datamanager.service.StaffInviteService;
 import dev.waiz.datamanager.util.CookieUtil;
 import dev.waiz.datamanager.util.JwtUtil;
 import jakarta.transaction.Transactional;
@@ -22,6 +23,7 @@ import dev.waiz.datamanager.dto.GoogleSignInRequest;
 import dev.waiz.datamanager.dto.CompleteUserProfileRequest;
 import dev.waiz.datamanager.dto.CompleteStaffProfileRequest;
 import dev.waiz.datamanager.dto.ForgotPasswordRequest;
+import dev.waiz.datamanager.service.EmailService;
 import dev.waiz.datamanager.service.GoogleAuthService;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +49,8 @@ public class accountcontroller {
     @Autowired private LoginAttemptService loginAttemptService;
     @Autowired private RefreshTokenService refreshTokenService;
     @Autowired private CookieUtil          cookieUtil;
+    @Autowired private StaffInviteService staffInviteService;
+    @Autowired private EmailService emailService;
 
     // ──────────────────────────────────────────────────────────────────
     //  SIGNIN
@@ -83,6 +87,15 @@ public class accountcontroller {
         }
 
         account acc = accountOpt.get();
+
+        //Block pending accounts
+        if ("pending".equals(acc.getStatus())){
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Account pending approval. You will receive an email once approved.");
+        }
+
+        if ("inactive".equals(acc.getStatus())){
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Account is has been deactivated. Please contact Admin support.");
+        }
 
         // ④ Reset rate-limit counter on success
         loginAttemptService.loginSucceeded(clientIp);
@@ -166,6 +179,14 @@ public class accountcontroller {
     @PostMapping("/signup/staff")
     public ResponseEntity<?> signupStaff(@RequestBody SignupStaffRequest signupRequest,
                                          HttpServletResponse response) {
+        
+        if(signupRequest.getInviteCode() == null || signupRequest.getInviteCode().isBlank()){
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Staff registration requires a valid invite code. Please contact your admin.");
+        }
+
+        if(!staffInviteService.isValidInviteCode(signupRequest.getInviteCode())){
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Invalid or expired invite code. Please contact your admin for a new code.");
+        }
 
         if (accountService.usernameExists(signupRequest.getUsername())) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
@@ -176,8 +197,10 @@ public class accountcontroller {
                     signupRequest.getUsername(),
                     signupRequest.getPassword(),
                     "STAFF",
-                    "active"
+                    "pending" // Staff accounts start in pending status until approved by an admin
             );
+            newAccount.setSecurityQuestion(signupRequest.getSecurityQuestion());
+            newAccount.setSecurityAnswer(signupRequest.getSecurityAnswer());
             account createdAccount = accountService.createAccount(newAccount);
 
             staff newStaff = new staff();
@@ -185,19 +208,22 @@ public class accountcontroller {
             newStaff.setFullName(signupRequest.getFullName());
             newStaff.setDepartment(signupRequest.getDepartment());
             newStaff.setPosition(signupRequest.getPosition());
-            staff createdStaff = staffService.createStaff(newStaff);
+            staffService.createStaff(newStaff);
 
-            String accessToken        = jwtUtil.generateToken(createdAccount.getUsername(), createdAccount.getRole());
-            refreshtoken refreshToken = refreshTokenService.createRefreshToken(createdAccount);
-            cookieUtil.addAuthCookies(response, accessToken, refreshToken.getToken());
+            // Mark invite code as used
+             staffInviteService.markAsUsed(signupRequest.getInviteCode());
 
-            AuthResponse authResponse = AuthResponse.builder()
-                    .username(createdAccount.getUsername())
-                    .role(createdAccount.getRole())
-                    .user(createdStaff)
-                    .build();
+            try{
+                emailService.sendStaffRegistrationAlert(
+                    "yafiqwaiz@gmail.com",
+                    signupRequest.getUsername()
+                );
+            } catch (Exception e) {
+                System.out.println("⚠️ Admin notification email failed: " + e.getMessage());
+            }
+            return ResponseEntity.status(HttpStatus.CREATED).body("Staff account created successfully and is pending approval by an admin. " +
+            "You will receive an email notification once your account is approved.");
 
-            return ResponseEntity.status(HttpStatus.CREATED).body(authResponse);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error creating staff: " + e.getMessage());

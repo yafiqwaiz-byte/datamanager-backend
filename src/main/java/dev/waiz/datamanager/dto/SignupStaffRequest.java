@@ -15,4 +15,5 @@ public class SignupStaffRequest {
     private String position;
     private String securityQuestion;
     private String securityAnswer;
+    private String inviteCode;
 }
