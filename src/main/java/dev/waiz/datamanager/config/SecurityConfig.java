@@ -1,12 +1,11 @@
 package dev.waiz.datamanager.config;
 
-import dev.waiz.datamanager.util.CookieUtil;
-import dev.waiz.datamanager.util.JwtUtil;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
+import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
+
+
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -28,16 +27,22 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Optional;
+import dev.waiz.datamanager.util.CookieUtil;
+import dev.waiz.datamanager.util.JwtUtil;
+import jakarta.servlet.Filter;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig implements WebMvcConfigurer {
 
-    @Autowired
-    private JwtAuthFilter jwtAuthFilter;
+    
+    private final JwtAuthFilter jwtAuthFilter;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
@@ -102,6 +107,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .requestMatchers(HttpMethod.GET,  "/api/letters/download/**").hasAnyRole("USER", "STAFF")
                 .requestMatchers(HttpMethod.GET, "/api/letters/mapping/**").hasAnyRole("USER", "STAFF")
                 .requestMatchers(HttpMethod.PUT, "/api/letters/mapping/confirm/**").hasAnyRole("USER", "STAFF")
+                .requestMatchers("/api/ai/**").hasAnyRole("STAFF", "USER")
 
                 // ── Letters: STAFF only catch-all ─────────────────────
                 .requestMatchers("/api/letters/**").hasRole("STAFF")
@@ -132,18 +138,33 @@ public class SecurityConfig implements WebMvcConfigurer {
     }
 
     @Bean
+    public FilterRegistrationBean<Filter> coopHeaderFilter(){
+        FilterRegistrationBean<Filter> registration = new FilterRegistrationBean<>();
+        registration.setFilter((request,response,chain) -> {
+            HttpServletResponse httpresponse = (HttpServletResponse) response;
+            httpresponse.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+            httpresponse.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
+            chain.doFilter(request, response);
+        });
+        registration.addUrlPatterns("/*");
+        registration.setOrder(1);
+        return registration;
+    }
+
+    @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
     @Component
+    @RequiredArgsConstructor
     public static class JwtAuthFilter extends OncePerRequestFilter {
 
-        @Autowired
-        private JwtUtil jwtUtil;
+        
+        private final JwtUtil jwtUtil;
 
-        @Autowired
-        private CookieUtil cookieUtil;
+        
+        private final CookieUtil cookieUtil;
 
         @Override
         protected void doFilterInternal(HttpServletRequest request,
