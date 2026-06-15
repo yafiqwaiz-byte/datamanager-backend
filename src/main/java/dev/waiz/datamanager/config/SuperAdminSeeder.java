@@ -1,6 +1,5 @@
 package dev.waiz.datamanager.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -8,11 +7,13 @@ import org.springframework.beans.factory.annotation.Value;
 
 import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.service.accountservice;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class SuperAdminSeeder implements CommandLineRunner {
 
-    @Autowired private accountservice accountService;
+     private final accountservice accountService;
 
     @Value("${app.superadmin.username}")
     private String superAdminUsername;

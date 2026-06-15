@@ -2,17 +2,18 @@ package dev.waiz.datamanager.service;
 
 import dev.waiz.datamanager.model.staff;
 import dev.waiz.datamanager.repository.staffrepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class staffservice {
 
-    @Autowired
-    private staffrepository staffRepository;
+    
+    private final staffrepository staffRepository;
 
     // CREATE - Save a new staff member
     public staff createStaff(staff newStaff) {

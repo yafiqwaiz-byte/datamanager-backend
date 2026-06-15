@@ -3,18 +3,18 @@ package dev.waiz.datamanager.service;
 import dev.waiz.datamanager.model.StaffInvites;
 
 import java.time.OffsetDateTime;
-
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import dev.waiz.datamanager.repository.StaffInviteRepository;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class StaffInviteService {
 
     
-    @Autowired
-    private StaffInviteRepository staffInviteRepository;
+    
+    private final StaffInviteRepository staffInviteRepository;
 
     public StaffInvites generateInviteCode(String email){
         String code = "STAFF-" + java.util.UUID.randomUUID().toString()

@@ -13,6 +13,7 @@ import dev.waiz.datamanager.service.StaffInviteService;
 import dev.waiz.datamanager.util.CookieUtil;
 import dev.waiz.datamanager.util.JwtUtil;
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import dev.waiz.datamanager.dto.SigninRequest;
@@ -26,7 +27,6 @@ import dev.waiz.datamanager.dto.ForgotPasswordRequest;
 import dev.waiz.datamanager.service.EmailService;
 import dev.waiz.datamanager.service.GoogleAuthService;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -37,20 +37,21 @@ import java.util.Optional;
 import java.util.UUID;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/accounts")
 @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class accountcontroller {
 
-    @Autowired private accountservice      accountService;
-    @Autowired private userservice         userService;
-    @Autowired private staffservice        staffService;
-    @Autowired private JwtUtil             jwtUtil;
-    @Autowired private GoogleAuthService   googleAuthService;
-    @Autowired private LoginAttemptService loginAttemptService;
-    @Autowired private RefreshTokenService refreshTokenService;
-    @Autowired private CookieUtil          cookieUtil;
-    @Autowired private StaffInviteService staffInviteService;
-    @Autowired private EmailService emailService;
+     private final accountservice accountService;
+     private final userservice         userService;
+     private final staffservice        staffService;
+     private final JwtUtil             jwtUtil;
+     private final GoogleAuthService   googleAuthService;
+     private final LoginAttemptService loginAttemptService;
+     private final RefreshTokenService refreshTokenService;
+     private final CookieUtil          cookieUtil;
+     private final StaffInviteService staffInviteService;
+     private final EmailService emailService;
 
     // ──────────────────────────────────────────────────────────────────
     //  SIGNIN

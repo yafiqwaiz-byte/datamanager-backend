@@ -3,7 +3,6 @@ package dev.waiz.datamanager.controller;
 import java.util.Map;
 import java.util.Optional;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,16 +19,20 @@ import dev.waiz.datamanager.util.CookieUtil;
 import dev.waiz.datamanager.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "http://localhost:3000",allowCredentials = "true")
 public class AuthController {
 
-    @Autowired private RefreshTokenService refreshTokenService;
-    @Autowired private accountservice      accountService;
-    @Autowired private JwtUtil             jwtUtil;
-    @Autowired private CookieUtil          cookieUtil;
+    private final RefreshTokenService refreshTokenService;
+    private final accountservice accountService;
+    private final JwtUtil jwtUtil;
+    private final CookieUtil cookieUtil;
+
+    
 
      // ──────────────────────────────────────────────────────────────────
     //  POST /api/auth/refresh

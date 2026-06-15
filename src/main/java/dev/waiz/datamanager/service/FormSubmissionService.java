@@ -1,7 +1,6 @@
 package dev.waiz.datamanager.service;
 
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -29,6 +28,7 @@ import dev.waiz.datamanager.repository.formtemplaterepository;
 import dev.waiz.datamanager.repository.staffrepository;
 import dev.waiz.datamanager.repository.userrepository;
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -40,28 +40,29 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class FormSubmissionService {
 
-    @Autowired
-    private FormSubmissionRepository formSubmissionRepository;
     
-    @Autowired
-    private formtemplaterepository formTemplateRepository;
+    private final FormSubmissionRepository formSubmissionRepository;
+    
+    
+    private final formtemplaterepository formTemplateRepository;
 
-    @Autowired
-    private FormFieldRepository formFieldRepository;
+    
+    private final FormFieldRepository formFieldRepository;
 
-    @Autowired
-    private FormAnswerRepository formAnswerRepository;
+    
+    private final FormAnswerRepository formAnswerRepository;
 
-    @Autowired
-    private userrepository userRepository;
+    
+    private final userrepository userRepository;
 
-    @Autowired
-    private staffrepository staffrepository;
+    
+    private final staffrepository staffrepository;
 
-    @Autowired
-    private accountrepository accountRepository;
+    
+    private final accountrepository accountRepository;
 
     private final String uploadDir= "uploads/form-files/";
 

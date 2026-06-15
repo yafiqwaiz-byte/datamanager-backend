@@ -3,7 +3,6 @@ package dev.waiz.datamanager.controller;
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -22,16 +21,17 @@ import dev.waiz.datamanager.dto.SubmissionResponseDTO;
 import dev.waiz.datamanager.dto.TemplateRequestDTO;
 import dev.waiz.datamanager.service.FormSubmissionService;
 import dev.waiz.datamanager.service.FormTemplateService;
+import lombok.RequiredArgsConstructor;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/forms")
 public class FormTemplateController {
 
-    @Autowired
-    private FormTemplateService formTemplateService;
+    
+    private final FormTemplateService formTemplateService;
 
-    @Autowired
-    private FormSubmissionService formSubmissionService;
+    private final FormSubmissionService formSubmissionService;
 
     // USER:  GET /api/forms/templates?active=true
     // STAFF: GET /api/forms/templates  

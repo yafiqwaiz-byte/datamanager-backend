@@ -3,24 +3,25 @@ package dev.waiz.datamanager.service;
 import dev.waiz.datamanager.model.refreshtoken;
 import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.repository.RefreshTokenRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
- 
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class RefreshTokenService {
 
 
     private static final long REFRESH_TOKEN_EXPIRY_MS = 7L*24*60*60*1000;
 
-    @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
+    
+    private final RefreshTokenRepository refreshTokenRepository;
 
 
      /**

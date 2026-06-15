@@ -2,7 +2,7 @@ package dev.waiz.datamanager.controller;
 
 import dev.waiz.datamanager.model.staff;
 import dev.waiz.datamanager.service.staffservice;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,11 +11,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/staff")
 public class staffcontroller {
 
-    @Autowired
-    private staffservice staffService;
+    
+    private final staffservice staffService;
 
     // CREATE - Create a new staff member
     @PostMapping

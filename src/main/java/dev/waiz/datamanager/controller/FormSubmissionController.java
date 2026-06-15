@@ -4,7 +4,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
@@ -16,13 +15,16 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 import dev.waiz.datamanager.dto.SubmissionResponseDTO;
 import dev.waiz.datamanager.service.FormSubmissionService;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/forms")
 public class FormSubmissionController {
 
-    @Autowired
-    private FormSubmissionService formSubmissionService;
+    
+    private final 
+    FormSubmissionService formSubmissionService;
 
     @PostMapping(value = "/submit", consumes = "multipart/form-data")
     public ResponseEntity<?> submit(

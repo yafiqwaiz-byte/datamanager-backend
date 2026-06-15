@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,15 +13,17 @@ import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.service.EmailService;
 import dev.waiz.datamanager.service.StaffInviteService;
 import dev.waiz.datamanager.service.accountservice;
+import lombok.RequiredArgsConstructor;
 
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/admin")
 public class AdminController {
 
-    @Autowired private accountservice accountService;
-    @Autowired private StaffInviteService staffInviteService;
-    @Autowired private EmailService emailService;
+     private final accountservice accountService;
+     private final StaffInviteService staffInviteService;
+     private final EmailService emailService;
 
 
     
@@ -75,6 +76,7 @@ public class AdminController {
        
     }
 
+    @PatchMapping("/accounts/{accountId}/reject")
     public ResponseEntity<?> rejectStaff(@PathVariable UUID accountId){
         account updated = accountService.updateAccountStatus(accountId,"rejeccted");
         if (updated == null){
@@ -95,6 +97,7 @@ public class AdminController {
     }
 
 
+    @PatchMapping("/accounts/{accountId}/reactivate")
     public ResponseEntity<?> reactivateAccount(@PathVariable UUID accountId){
         account updated = accountService.updateAccountStatus(accountId, "active");
         if (updated == null) {

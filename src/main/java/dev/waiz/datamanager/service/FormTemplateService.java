@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.time.*;
-
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -22,23 +20,25 @@ import dev.waiz.datamanager.repository.FormFieldRepository;
 import dev.waiz.datamanager.repository.formtemplaterepository;
 import dev.waiz.datamanager.repository.staffrepository;
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 @Transactional
 public class FormTemplateService {
 
 
-    @Autowired
-    private staffrepository staffRepository;
+    
+    private final staffrepository staffRepository;
 
-    @Autowired
-    private formtemplaterepository formtemplaterepository;
+    
+    private final formtemplaterepository formtemplaterepository;
 
-    @Autowired
-    private FormFieldRepository formfieldrepository;
+    
+    private final FormFieldRepository formfieldrepository;
 
-    @Autowired
-    private FormAnswerRepository formanswerrepository;
+    
+    private final FormAnswerRepository formanswerrepository;
 
 
 

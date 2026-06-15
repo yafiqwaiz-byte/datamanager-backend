@@ -2,7 +2,8 @@ package dev.waiz.datamanager.controller;
 
 import dev.waiz.datamanager.model.user;
 import dev.waiz.datamanager.service.userservice;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,11 +12,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/users")
 public class usercontroller {
 
-    @Autowired
-    private userservice userService;
+    
+    private final userservice userService;
 
     // CREATE - Create a new user
     @PostMapping

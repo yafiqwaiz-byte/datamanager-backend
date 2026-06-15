@@ -8,8 +8,6 @@ import java.nio.file.Paths;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
-
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,27 +23,29 @@ import dev.waiz.datamanager.repository.OcrResultRepository;
 import dev.waiz.datamanager.repository.accountrepository;
 import dev.waiz.datamanager.repository.staffrepository;
 import dev.waiz.datamanager.repository.userrepository;
+import lombok.RequiredArgsConstructor;
 
+@RequiredArgsConstructor
 @Service
 public class FileUploadService {
 
-    @Autowired
-    private FileUploadRepository fileUploadRepository;
+    
+    private final FileUploadRepository fileUploadRepository;
 
-    @Autowired
-    private OcrResultRepository ocrResultRepository;
+    
+    private final OcrResultRepository ocrResultRepository;
 
-    @Autowired
-    private OcrService ocrService;
+    
+    private final OcrService ocrService;
 
-    @Autowired
-    private userrepository userrepository;
+    
+    private final userrepository userrepository;
 
-    @Autowired
-    private accountrepository accountrepository;
+    
+    private final accountrepository accountrepository;
 
-    @Autowired
-    private staffrepository staffrepository;
+    
+    private final staffrepository staffrepository;
 
     private final String uploadDir = "uploads/ocr-files/";
 

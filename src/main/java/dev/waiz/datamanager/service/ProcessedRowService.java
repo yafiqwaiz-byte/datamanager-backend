@@ -92,6 +92,22 @@ public class ProcessedRowService {
         return saved.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
+    @SuppressWarnings("unchecked")
+    public List<Map<String,Object>> getSampleRows(UUID excelId,int limit){
+        Page<ProcessedRowDTO> page = getRowsByExcelId(excelId, "cleaned", 0, limit);
+
+        List<Map<String,Object>> result = new ArrayList<>();
+        for (ProcessedRowDTO row : page.getContent()){
+            try {
+                Map<String,Object> data = objectMapper.readValue(row.getRowData(),Map.class);
+                result.add(data);
+            } catch (Exception e){
+                log.error("Failed to parse row data:{}",e.getMessage());
+            }
+        }
+        return result;
+    }
+
     public Page<ProcessedRowDTO> getRowsByExcelId(UUID excelId,String dataVersion, int page,int size) {
         Pageable pageable = PageRequest.of(page, size,Sort.by("rowIndex").ascending());
 

@@ -4,7 +4,6 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,13 +18,15 @@ import dev.waiz.datamanager.model.ocrresult;
 import dev.waiz.datamanager.service.FileUploadService;
 import dev.waiz.datamanager.util.ByteArrayMultipartFile;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/files")
 public class FileUploadController {
 
-    @Autowired
-    private FileUploadService fileUploadService;
+    
+    private final FileUploadService fileUploadService;
 
     @PostMapping(value = "/ocr/upload",consumes = "multipart/form-data")
     public ResponseEntity<?> uploadAndProcess(@RequestParam("file") MultipartFile file){

@@ -3,7 +3,7 @@ package dev.waiz.datamanager.service;
 import dev.waiz.datamanager.dto.ForgotPasswordRequest;
 import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.repository.accountrepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -12,13 +12,14 @@ import java.util.UUID;
 
 
 @Service
+@RequiredArgsConstructor
 public class accountservice {
 
-    @Autowired
-    private accountrepository accountRepository;
+    
+    private final accountrepository accountRepository;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    
+    private final PasswordEncoder passwordEncoder;
 
     // CREATE - Save a new account
     public account createAccount(account newAccount) {
