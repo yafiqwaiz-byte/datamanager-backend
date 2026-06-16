@@ -97,6 +97,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .requestMatchers(HttpMethod.GET,    "/api/forms/templates/*/submissions").hasRole("STAFF")
                 .requestMatchers(HttpMethod.GET,    "/api/forms/submissions/all").hasRole("STAFF")
                 .requestMatchers("/api/staff/**").hasRole("STAFF")
+                .requestMatchers("/api/po-aging/**").hasRole("STAFF")
 
                 // ── Letters: USER + STAFF (specific endpoints first) ───
                 .requestMatchers(HttpMethod.GET,  "/api/letters/templates/all").hasAnyRole("USER", "STAFF")

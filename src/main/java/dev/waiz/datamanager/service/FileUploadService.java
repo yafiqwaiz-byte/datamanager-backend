@@ -122,6 +122,39 @@ public class FileUploadService {
         return fileUploadRepository.save(upload);
     }
 
+    // ADD this new method for PO Aging uploads
+    public fileupload savePOAgingUpload(MultipartFile file) throws IOException {
+
+    String username = SecurityContextHolder.getContext()
+                      .getAuthentication().getName();
+    account acc = accountrepository.findByUsername(username)
+                  .orElseThrow(() -> new RuntimeException("Account not found"));
+    staff currentStaff = staffrepository
+                  .findByAccount_AccountId(acc.getAccountId())
+                  .orElseThrow(() -> new RuntimeException("Staff not found"));
+
+    String originName = file.getOriginalFilename();
+    String extension = originName != null && originName.contains(".")
+                       ? originName.substring(originName.lastIndexOf(".")) : "";
+
+    String filename = UUID.randomUUID() + extension;
+    
+    // ← Different directory for PO aging files
+    String poAgingDir = "uploads/po-aging/";
+    Path savepath = Paths.get(poAgingDir + filename);
+    Files.createDirectories(savepath.getParent());
+    Files.write(savepath, file.getBytes());
+
+    fileupload upload = new fileupload();
+    upload.setStaff(currentStaff);
+    upload.setFileName(originName);
+    upload.setFileType(file.getContentType());
+    upload.setFilePath(poAgingDir + filename);
+    upload.setUploadedAt(OffsetDateTime.now());
+
+    return fileUploadRepository.save(upload);
+}
+
 
 
     public List<fileupload> getUserUploads() {
