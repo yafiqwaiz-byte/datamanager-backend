@@ -46,10 +46,15 @@ public class SecurityConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        
+        // ← ADD THIS — exclude /api/** from resource handling
         registry.addResourceHandler("/uploads/**")
             .addResourceLocations("file:C:/Users/User/Documents/Projectwaiz/datamanager/uploads/");
+
         registry.addResourceHandler("/uploads/ocr-files/**")
             .addResourceLocations("file:C:/Users/User/Documents/Projectwaiz/datamanager/uploads/ocr-files/");
+
+        // Do NOT add any handler for /** or /api/**
     }
 
     @Bean

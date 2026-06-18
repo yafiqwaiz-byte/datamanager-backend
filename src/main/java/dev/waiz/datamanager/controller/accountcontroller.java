@@ -64,6 +64,9 @@ public class accountcontroller {
 
         String clientIp = getClientIp(request);
 
+        if (clientIp == null || clientIp.isBlank()){
+            clientIp ="unknown";
+        }
         // ① Rate-limit check
         if (loginAttemptService.isBlocked(clientIp)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
@@ -518,7 +521,8 @@ public class accountcontroller {
         if (xForwardedFor != null && !xForwardedFor.isBlank()) {
             return xForwardedFor.split(",")[0].trim();
         }
-        return request.getRemoteAddr();
+        String remoteAddr = request.getRemoteAddr();
+        return remoteAddr != null? remoteAddr:"unknown";
     }
 
     // ──────────────────────────────────────────────────────────────────

@@ -202,7 +202,7 @@ private Map<String, Integer> wordVector(String text) {
     Map<String, Integer> vector = new HashMap<>();
     for (String word : text.split("\\s+")) {
         if (!word.isEmpty()) {
-            vector.merge(word, 1, Integer::sum);
+            vector.merge(word, 1, (a,b) -> a+b);
         }
     }
     return vector;

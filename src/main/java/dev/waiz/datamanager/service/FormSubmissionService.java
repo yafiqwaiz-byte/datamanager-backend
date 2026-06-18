@@ -10,7 +10,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.multipart.MultipartFile;
-
 import dev.waiz.datamanager.dto.AnswerResponseDTO;
 import dev.waiz.datamanager.dto.SubmissionResponseDTO;
 import dev.waiz.datamanager.model.account;

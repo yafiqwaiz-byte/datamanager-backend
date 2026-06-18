@@ -123,19 +123,21 @@ public class FileUploadService {
     }
 
     // ADD this new method for PO Aging uploads
-    public fileupload savePOAgingUpload(MultipartFile file) throws IOException {
+    public fileupload savePOAgingUpload(String originalName,String contentType,byte[] fileByte) throws IOException {
 
     String username = SecurityContextHolder.getContext()
                       .getAuthentication().getName();
     account acc = accountrepository.findByUsername(username)
                   .orElseThrow(() -> new RuntimeException("Account not found"));
+
     staff currentStaff = staffrepository
                   .findByAccount_AccountId(acc.getAccountId())
                   .orElseThrow(() -> new RuntimeException("Staff not found"));
 
-    String originName = file.getOriginalFilename();
-    String extension = originName != null && originName.contains(".")
-                       ? originName.substring(originName.lastIndexOf(".")) : "";
+
+    
+    String extension = originalName != null && originalName.contains(".")
+    ? originalName.substring(originalName.lastIndexOf(".")) : "";
 
     String filename = UUID.randomUUID() + extension;
     
@@ -143,12 +145,12 @@ public class FileUploadService {
     String poAgingDir = "uploads/po-aging/";
     Path savepath = Paths.get(poAgingDir + filename);
     Files.createDirectories(savepath.getParent());
-    Files.write(savepath, file.getBytes());
+    Files.write(savepath, fileByte);
 
     fileupload upload = new fileupload();
     upload.setStaff(currentStaff);
-    upload.setFileName(originName);
-    upload.setFileType(file.getContentType());
+    upload.setFileName(originalName);
+    upload.setFileType(contentType);
     upload.setFilePath(poAgingDir + filename);
     upload.setUploadedAt(OffsetDateTime.now());
 

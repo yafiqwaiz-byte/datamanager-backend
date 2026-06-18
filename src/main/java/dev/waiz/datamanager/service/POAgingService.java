@@ -132,15 +132,15 @@ public class POAgingService {
     // ══════════════════════════════════════════════════════════════
     //  STEP 1: Process Raw PO Data Upload
     // ══════════════════════════════════════════════════════════════
-    public POAgingDashboardDTO processRawPOData(
-            MultipartFile file, UUID uploadId) throws Exception {
+    public POAgingDashboardDTO processRawPODataFromBytes(
+            byte[] fileByte, UUID uploadId) throws Exception {
 
         fileupload upload = fileUploadRepository.findById(uploadId)
                 .orElseThrow(() -> new RuntimeException(
                     "Upload not found: " + uploadId));
 
         // ── Read Excel ─────────────────────────────────────────────
-        List<Map<String, String>> allRows = readExcelFile(file);
+        List<Map<String, String>> allRows = readExcelFromBytes(fileByte);
         log.info("Total rows read: {}", allRows.size());
 
         if (allRows.isEmpty()) {
@@ -915,4 +915,52 @@ public class POAgingService {
             return 0;
         }
     }
+
+    // ── New helper — reads Excel from byte array ───────────────
+    private List<Map<String, String>> readExcelFromBytes(byte[] fileBytes) throws Exception {
+        List<Map<String, String>> rows = new ArrayList<>();
+
+        try (Workbook workbook = new XSSFWorkbook(
+                new java.io.ByteArrayInputStream(fileBytes))) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+            Row headerRow = sheet.getRow(0);
+
+            if (headerRow == null) {
+                throw new RuntimeException("Excel file has no header row.");
+            }
+
+            List<String> headers = new ArrayList<>();
+            for (Cell cell : headerRow) {
+                headers.add(cell.getStringCellValue().trim());
+            }
+            log.info("Headers found: {}", headers);
+
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+
+                boolean isEmpty = true;
+                for (int j = 0; j < headers.size(); j++) {
+                    Cell cell = row.getCell(j, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                    if (cell != null && cell.getCellType() != CellType.BLANK) {
+                        isEmpty = false;
+                        break;
+                    }
+                }
+                if (isEmpty) continue;
+
+                Map<String, String> rowData = new LinkedHashMap<>();
+                for (int j = 0; j < headers.size(); j++) {
+                    Cell cell = row.getCell(j, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                    rowData.put(headers.get(j), getCellValue(cell));
+                }
+                rows.add(rowData);
+            }
+        }
+
+        log.info("Read {} data rows from Excel", rows.size());
+        return rows;
+    }
+
 }

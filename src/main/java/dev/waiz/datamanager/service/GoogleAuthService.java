@@ -5,16 +5,16 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import dev.waiz.datamanager.config.GoogleProperties;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
-
 import java.util.Collections;
-
 @Service
+@RequiredArgsConstructor
 public class GoogleAuthService {
 
-    @Autowired
-    private GoogleProperties googleProperties;
+    
+    private final GoogleProperties googleProperties;
 
     public GoogleIdToken.Payload verifyToken(String idTokenString) {
         try {

@@ -2,23 +2,25 @@ package dev.waiz.datamanager.dto;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import lombok.Data;
 
 @Data
 public class POAgingDashboardDTO {
+
+    private UUID uploadId;
     // ── KPI Cards ──────────────────────────────────────────────────
     private Integer totalPOOver180;
     private Integer updatedTotalPOOver180;
-    private Integer totalPOCleared;          // ✅ added
+    private Integer totalPOCleared;         
 
-    private Double totalOutstandingValue;    // ✅ renamed from totalOutstandingRM
-    private Double updatedTotalOutstandingValue; // ✅ renamed from updatedTotalOutstandingRM
+    private Double totalOutstandingValue;    
+    private Double updatedTotalOutstandingValue; 
 
     private Double averagePercentAging;
-    private Double updatedAveragePercentAging;   // ✅ added
-
-    private Integer totalStations;           // ✅ added
+    private Double updatedAveragePercentAging;  
+    private Integer totalStations;           
     private Integer highAgingStations;
     private Integer mediumAgingStations;
     private Integer lowAgingStations;

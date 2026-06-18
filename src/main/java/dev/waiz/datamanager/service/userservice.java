@@ -2,17 +2,19 @@ package dev.waiz.datamanager.service;
 
 import dev.waiz.datamanager.model.user;
 import dev.waiz.datamanager.repository.userrepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class userservice {
 
-    @Autowired
-    private userrepository userRepository;
+    
+    private final userrepository userRepository;
 
     // CREATE - Save a new user
     public user createUser(user newUser) {

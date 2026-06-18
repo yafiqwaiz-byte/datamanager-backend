@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import dev.waiz.datamanager.dto.POAgingDashboardDTO;
+import dev.waiz.datamanager.model.fileupload;
+import dev.waiz.datamanager.service.FileUploadService;
 import dev.waiz.datamanager.service.POAgingService;
 import lombok.RequiredArgsConstructor;
 
@@ -22,13 +24,21 @@ import lombok.RequiredArgsConstructor;
 public class POAgingController {
 
     private final POAgingService poAgingService;
+
+    private final FileUploadService fileUploadService;
    
 
-    @PostMapping("/upload/raw/{uploadId}")
-    public ResponseEntity<?> uploadRawPOData(@RequestParam("file") MultipartFile file,@PathVariable UUID uploadId){
+    @PostMapping("/upload/raw")
+    public ResponseEntity<?> uploadRawPOData(@RequestParam("file") MultipartFile file){
         try{
-            POAgingDashboardDTO result = poAgingService.processRawPOData(file,uploadId);
 
+            byte[] fileBytes = file.getBytes();
+
+            fileupload upload = fileUploadService.savePOAgingUpload(file.getOriginalFilename(),file.getContentType(),fileBytes);
+
+            POAgingDashboardDTO result = poAgingService.processRawPODataFromBytes(fileBytes,upload.getUploadId());
+
+            result.setUploadId(upload.getUploadId());
             return ResponseEntity.ok(result);
         } catch (Exception e){
             return ResponseEntity.status(500).body(Map.of("error",e.getMessage()));
