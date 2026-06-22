@@ -65,6 +65,26 @@ public class FormSubmissionService {
 
     private final String uploadDir= "uploads/form-files/";
 
+    // ── Shared answer mapper ───────────────────────────────────────────────────
+    // Centralised so fieldOrder is never forgotten if a fourth query method is added.
+    private AnswerResponseDTO toAnswerDTO(formanswer answer) {
+        return new AnswerResponseDTO(
+            answer.getAnswerId(),
+            answer.getField().getFieldLabel(),
+            answer.getAnswerValue(),
+            answer.getField().getFieldOrder()
+        );
+    }
+
+    // ── Shared answer list mapper — sorts by fieldOrder so the UI always
+    // receives answers in the same order the staff designed the template. ──────
+    private List<AnswerResponseDTO> toSortedAnswerDTOs(List<formanswer> answers) {
+        return answers.stream()
+            .map(this::toAnswerDTO)
+            .sorted(Comparator.comparingInt(a -> a.getFieldOrder() != null ? a.getFieldOrder() : Integer.MAX_VALUE))
+            .collect(Collectors.toList());
+    }
+
     @Transactional
     public UUID saveSubmission(
         UUID templateId,
@@ -162,12 +182,12 @@ public class FormSubmissionService {
                         throw new RuntimeException("Failed to save file: " + e.getMessage());
                     }
                 }
-                // ✅ Store all paths as comma-separated in ONE answer row
+                // Store all paths as comma-separated in ONE answer row
                 if (!savedPaths.isEmpty()) {
                     formanswer answer = new formanswer();
                     answer.setSubmission(submission);
                     answer.setField(field);
-                    answer.setAnswerValue(String.join(",", savedPaths)); // e.g. "uploads/form-files/a.jpg,uploads/form-files/b.jpg"
+                    answer.setAnswerValue(String.join(",", savedPaths));
                     formAnswerRepository.save(answer);
                 }
 
@@ -179,121 +199,103 @@ public class FormSubmissionService {
 
 
     @Transactional
-    public Page<SubmissionResponseDTO> getSubmissionsByTemplate(UUID templateId,int page,int size){
-        Pageable pageable = PageRequest.of(page, size,Sort.by("submittedAt").descending());
+    public Page<SubmissionResponseDTO> getSubmissionsByTemplate(UUID templateId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("submittedAt").descending());
 
-        Page<UUID> idPage = formSubmissionRepository.findIdsByTemplateId(templateId,pageable);
+        Page<UUID> idPage = formSubmissionRepository.findIdsByTemplateId(templateId, pageable);
 
         List<formsubmission> submissions = idPage.getContent().isEmpty()
-        ? List.of():formSubmissionRepository.findByIdsWithAnswers(idPage.getContent());
+            ? List.of() : formSubmissionRepository.findByIdsWithAnswers(idPage.getContent());
 
         List<UUID> orderedIDs = idPage.getContent();
         submissions.sort(Comparator.comparingInt(s -> orderedIDs.indexOf(s.getSubmissionId())));
 
+        List<SubmissionResponseDTO> dtos = submissions.stream()
+            .map(submit -> new SubmissionResponseDTO(
+                submit.getSubmissionId(),
+                submit.getTemplate().getTemplateName(),
+                submit.getInputMethod(),
+                submit.getSubmittedAt(),
+                submit.getStatus(),
+                toSortedAnswerDTOs(submit.getAnswers())
+            ))
+            .collect(Collectors.toList());
 
-
-       List<SubmissionResponseDTO> dtos = submissions.stream()
-       .map(submit -> new SubmissionResponseDTO(
-            submit.getSubmissionId(),
-            submit.getTemplate().getTemplateName(),
-            submit.getInputMethod(),
-            submit.getSubmittedAt(),
-            submit.getStatus(),
-            submit.getAnswers().stream()
-                .map(answer -> new AnswerResponseDTO(
-                    answer.getAnswerId(),
-                    answer.getField().getFieldLabel(),
-                    answer.getAnswerValue()
-                ))
-                .collect(Collectors.toList())
-        ))
-        .collect(Collectors.toList());
-        return new PageImpl<>(dtos,pageable,idPage.getTotalElements());
+        return new PageImpl<>(dtos, pageable, idPage.getTotalElements());
     }
 
    
     @Transactional
-    public Page<SubmissionResponseDTO> getMySubmissions(int page,int size) {
-    String username = SecurityContextHolder.getContext()
-        .getAuthentication().getName();
-    account account = accountRepository.findByUsername(username)
-        .orElseThrow(() -> new RuntimeException("Account not found"));
-    user user = userRepository.findByAccount_AccountId(account.getAccountId())
-        .orElseThrow(() -> new RuntimeException("User not found"));
-
-    Pageable pageable = PageRequest.of(page, size, Sort.by("submittedAt").descending());
-
-    Page<UUID> idPage = formSubmissionRepository.findIdsByUser(user, pageable);
-
-    List<formsubmission> submissions = idPage.getContent().isEmpty()
-    ?List.of():formSubmissionRepository.findByIdsWithAnswers(idPage.getContent());
-
-    List<UUID> orderedIds = idPage.getContent();
-    submissions.sort(Comparator.comparingInt(s -> orderedIds.indexOf(s.getSubmissionId())));
-
-
-    List<SubmissionResponseDTO> dtos = submissions.stream()
-        .map(submission -> new SubmissionResponseDTO(
-            submission.getSubmissionId(),
-            submission.getTemplate().getTemplateName(),
-            submission.getInputMethod(),
-            submission.getSubmittedAt(),
-            submission.getStatus(),
-            submission.getAnswers().stream()
-                .map(answer -> new AnswerResponseDTO(
-                    answer.getAnswerId(),
-                    answer.getField().getFieldLabel(),
-                    answer.getAnswerValue()
-                ))
-                .collect(Collectors.toList())
-        ))
-        .collect(Collectors.toList());
-        return new PageImpl<>(dtos,pageable,idPage.getTotalElements());
-}
-
-    @Transactional
-    public Page<SubmissionResponseDTO> getAllSubmissions(int page,int size){
+    public Page<SubmissionResponseDTO> getMySubmissions(int page, int size) {
         String username = SecurityContextHolder.getContext()
-        .getAuthentication().getName();
+            .getAuthentication().getName();
+        account account = accountRepository.findByUsername(username)
+            .orElseThrow(() -> new RuntimeException("Account not found"));
+        user user = userRepository.findByAccount_AccountId(account.getAccountId())
+            .orElseThrow(() -> new RuntimeException("User not found"));
 
-        staff currentstaff = staffrepository.findByAccount_Username(username)
-        .orElseThrow(() -> new RuntimeException("Staff not found"));
+        Pageable pageable = PageRequest.of(page, size, Sort.by("submittedAt").descending());
 
-        Pageable pageable = PageRequest.of(page,size,Sort.by("submittedAt").descending());
+        Page<UUID> idPage = formSubmissionRepository.findIdsByUser(user, pageable);
 
-        List<formtemplate> templates = formTemplateRepository.findByStaff(currentstaff);
-        List<UUID> templateIds = templates.stream()
-                                 .map(formtemplate::getTemplateId).collect(Collectors.toList());
-
-        if ( (templateIds.isEmpty())) {
-            return new PageImpl<>(List.of(), pageable, 0);
-        }
-
-        Page<UUID> idPage = formSubmissionRepository.findIdsByTemplateIds(templateIds,pageable);
-
-        List<formsubmission> submissions = idPage.getContent().isEmpty() ? List.of():formSubmissionRepository.findByIdsWithAnswers(idPage.getContent());
+        List<formsubmission> submissions = idPage.getContent().isEmpty()
+            ? List.of() : formSubmissionRepository.findByIdsWithAnswers(idPage.getContent());
 
         List<UUID> orderedIds = idPage.getContent();
         submissions.sort(Comparator.comparingInt(s -> orderedIds.indexOf(s.getSubmissionId())));
-              
 
-       List<SubmissionResponseDTO> dtos = submissions.stream()
-                .map(sub -> new SubmissionResponseDTO(
-                     sub.getSubmissionId(),
-                     sub.getTemplate().getTemplateName(),
-                     sub.getInputMethod(),
-                     sub.getSubmittedAt(),
-                     sub.getStatus(),
-                     sub.getAnswers().stream()
-                        .map(answer -> new AnswerResponseDTO(
-                             answer.getAnswerId(),
-                             answer.getField().getFieldLabel(),
-                             answer.getAnswerValue()
-                        ))
-                        .collect(Collectors.toList())
-                ))
-                .collect(Collectors.toList()); 
-    return new PageImpl<>(dtos,pageable,idPage.getTotalElements());
-}
+        List<SubmissionResponseDTO> dtos = submissions.stream()
+            .map(submission -> new SubmissionResponseDTO(
+                submission.getSubmissionId(),
+                submission.getTemplate().getTemplateName(),
+                submission.getInputMethod(),
+                submission.getSubmittedAt(),
+                submission.getStatus(),
+                toSortedAnswerDTOs(submission.getAnswers())
+            ))
+            .collect(Collectors.toList());
 
+        return new PageImpl<>(dtos, pageable, idPage.getTotalElements());
+    }
+
+    @Transactional
+    public Page<SubmissionResponseDTO> getAllSubmissions(int page, int size) {
+        String username = SecurityContextHolder.getContext()
+            .getAuthentication().getName();
+
+        staff currentstaff = staffrepository.findByAccount_Username(username)
+            .orElseThrow(() -> new RuntimeException("Staff not found"));
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("submittedAt").descending());
+
+        List<formtemplate> templates = formTemplateRepository.findByStaff(currentstaff);
+        List<UUID> templateIds = templates.stream()
+            .map(formtemplate::getTemplateId)
+            .collect(Collectors.toList());
+
+        if (templateIds.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, 0);
+        }
+
+        Page<UUID> idPage = formSubmissionRepository.findIdsByTemplateIds(templateIds, pageable);
+
+        List<formsubmission> submissions = idPage.getContent().isEmpty()
+            ? List.of() : formSubmissionRepository.findByIdsWithAnswers(idPage.getContent());
+
+        List<UUID> orderedIds = idPage.getContent();
+        submissions.sort(Comparator.comparingInt(s -> orderedIds.indexOf(s.getSubmissionId())));
+
+        List<SubmissionResponseDTO> dtos = submissions.stream()
+            .map(sub -> new SubmissionResponseDTO(
+                sub.getSubmissionId(),
+                sub.getTemplate().getTemplateName(),
+                sub.getInputMethod(),
+                sub.getSubmittedAt(),
+                sub.getStatus(),
+                toSortedAnswerDTOs(sub.getAnswers())
+            ))
+            .collect(Collectors.toList());
+
+        return new PageImpl<>(dtos, pageable, idPage.getTotalElements());
+    }
 }

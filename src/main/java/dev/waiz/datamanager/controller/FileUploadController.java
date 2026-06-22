@@ -3,6 +3,7 @@ package dev.waiz.datamanager.controller;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -62,6 +63,17 @@ public ResponseEntity<?> uploadExcel(
         return ResponseEntity.status(500).body("Excel file upload failed: " + e.getMessage());
     }
 }
+
+@PostMapping(value = "/forms/image/upload", consumes = "multipart/form-data")
+public  ResponseEntity<?> uploadFormImage(@RequestParam("file") MultipartFile file){
+    try{
+        String filepath = fileUploadService.saveFormImage(file);
+        return ResponseEntity.ok(Map.of("path",filepath));
+    } catch (Exception e){
+        return ResponseEntity.status(500)
+        .body(Map.of("error","Image upload failed:"+ e.getMessage()));
+    }
+ }
     
 
 

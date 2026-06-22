@@ -88,7 +88,14 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .requestMatchers("/api/files/ocr/**").hasAnyRole("USER", "STAFF")
                 .requestMatchers("/api/ocr/**").hasAnyRole("USER", "STAFF")
 
+                // ── Geocoding (USER + STAFF) — used by the "location" form field ──
+                .requestMatchers(HttpMethod.POST, "/api/geocode/reverse").hasAnyRole("USER", "STAFF")
+                .requestMatchers(HttpMethod.GET,"/api/geocode/autocomplete").hasAnyRole("USER","STAFF")
+                .requestMatchers(HttpMethod.GET,"/api/geocode/place-details").hasAnyRole("USER","STAFF")
+
                 // ── Forms: USER only ───────────────────────────────────
+                .requestMatchers(HttpMethod.POST, "/api/files/forms/image/upload")
+                .hasAnyRole("USER", "STAFF")
                 .requestMatchers(HttpMethod.POST, "/api/forms/submit").hasRole("USER")
                 .requestMatchers("/api/forms/my-submissions").hasRole("USER")
                 .requestMatchers(HttpMethod.GET, "/api/forms/user-templates").hasAnyRole("USER", "STAFF")

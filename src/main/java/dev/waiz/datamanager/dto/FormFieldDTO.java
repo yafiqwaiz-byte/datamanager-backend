@@ -1,5 +1,6 @@
 package dev.waiz.datamanager.dto;
 
+import java.util.List;
 import java.util.UUID;
 
 import lombok.AllArgsConstructor;
@@ -17,4 +18,5 @@ public class FormFieldDTO {
     private Boolean isRequired;
     private Integer fieldOrder;
     private String placeholder;
+    private List<String> imageLabels;
 }

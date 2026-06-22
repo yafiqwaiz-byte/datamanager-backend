@@ -38,6 +38,9 @@ public class formfield {
 
     @Column(name = "field_type")
     private String fieldType; //text, number, date, dropdown, etc.
+
+    @Column(name = "image_labels",columnDefinition = "TEXT")
+    private String imageLabels;
     
     @Column(name = "is_required")
     private Boolean isRequired;

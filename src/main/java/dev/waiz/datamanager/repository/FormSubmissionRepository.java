@@ -29,6 +29,11 @@ public interface FormSubmissionRepository extends JpaRepository<formsubmission,U
     @Query("SELECT f.submissionId FROM formsubmission f WHERE f.template.templateId IN :templateIds ORDER BY f.submittedAt DESC")
     Page<UUID> findIdsByTemplateIds(@Param("templateIds") List<UUID> templateIds,Pageable pageable);
 
+    // Used by FormTemplateService.deleteTemplate to block hard-deleting a template
+    // that already has submissions attached — staff should deactivate instead.
+    @Query("SELECT COUNT(f) FROM formsubmission f WHERE f.template.templateId = :templateId")
+    long countByTemplateId(@Param("templateId") UUID templateId);
+
 
  
 }

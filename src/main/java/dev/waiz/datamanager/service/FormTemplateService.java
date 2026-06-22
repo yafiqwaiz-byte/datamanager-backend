@@ -8,6 +8,8 @@ import java.time.*;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import dev.waiz.datamanager.dto.TemplateRequestDTO;
 import dev.waiz.datamanager.dto.FormFieldDTO;
@@ -17,14 +19,17 @@ import dev.waiz.datamanager.model.formtemplate;
 import dev.waiz.datamanager.model.staff;
 import dev.waiz.datamanager.repository.FormAnswerRepository;
 import dev.waiz.datamanager.repository.FormFieldRepository;
+import dev.waiz.datamanager.repository.FormSubmissionRepository;
 import dev.waiz.datamanager.repository.formtemplaterepository;
 import dev.waiz.datamanager.repository.staffrepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class FormTemplateService {
 
 
@@ -39,6 +44,13 @@ public class FormTemplateService {
 
     
     private final FormAnswerRepository formanswerrepository;
+
+    
+    private final FormSubmissionRepository formsubmissionrepository;
+
+    // Reused for serializing/deserializing imageLabels to/from the TEXT column.
+    // Stateless and thread-safe, so a single shared instance is fine here.
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
 
 
@@ -96,6 +108,7 @@ public class FormTemplateService {
                 f.setIsRequired(dto.getIsRequired());
                 f.setFieldOrder(dto.getFieldOrder());
                 f.setPlaceholder(dto.getPlaceholder());
+                f.setImageLabels(serializeImageLabels(dto.getImageLabels()));
                 f.setTemplate(savedTemplate);
                 return f;
             })
@@ -146,6 +159,7 @@ public class FormTemplateService {
                 f.setIsRequired(dto.getIsRequired());
                 f.setFieldOrder(dto.getFieldOrder());
                 f.setPlaceholder(dto.getPlaceholder());
+                f.setImageLabels(serializeImageLabels(dto.getImageLabels()));
                 f.setTemplate(template);
                 return f;
             })
@@ -173,6 +187,21 @@ public class FormTemplateService {
         if (!formtemplaterepository.existsById(id)) {
             throw new RuntimeException("Template not found"+id);
         }
+
+        // Submissions reference the template directly (form_submission.template_id),
+        // separate from form_field/form_answer. Refuse to hard-delete a template that
+        // already has real submission data attached — that data has standalone value
+        // and shouldn't be silently destroyed by a template cleanup action.
+        // Staff should use toggleTemplate (deactivate) instead to stop new submissions
+        // while preserving history.
+        long submissionCount = formsubmissionrepository.countByTemplateId(id);
+        if (submissionCount > 0) {
+            throw new IllegalArgumentException(
+                "Cannot delete this template: " + submissionCount +
+                " submissions already exist for it. Deactivate the template instead to stop new submissions."
+            );
+        }
+
             // Delete answers first
         List<formfield> fields = formfieldrepository.findByTemplate_TemplateId(id);
         fields.forEach(field -> 
@@ -213,7 +242,43 @@ public class FormTemplateService {
         dto.setIsRequired(f.getIsRequired());
         dto.setFieldOrder(f.getFieldOrder());
         dto.setPlaceholder(f.getPlaceholder());
+        dto.setImageLabels(deserializeImageLabels(f.getImageLabels()));
         return dto;
+    }
+
+    // ── imageLabels (de)serialization ──────────────────────────────
+    // The entity stores imageLabels as a JSON-array TEXT column (e.g. ["Tracking Board","Permit Khas"]),
+    // while the DTO exposes it as a List<String>. These two helpers convert between the two
+    // representations so the rest of the service can keep working with plain Java types.
+
+    private String serializeImageLabels(List<String> labels) {
+        if (labels == null || labels.isEmpty()) {
+            return null;
+        }
+        try {
+            return OBJECT_MAPPER.writeValueAsString(labels);
+        } catch (Exception e) {
+            // Practically unreachable for a List<String>, but if it ever happens it means
+            // the client sent something malformed — fail with 400 via IllegalArgumentException
+            // rather than a generic 500, since this is the client's request to fix and resend.
+            log.warn("Failed to serialize imageLabels, raw value: '{}'", labels, e);
+            throw new IllegalArgumentException("Invalid imageLabels value", e);
+        }
+    }
+
+    private List<String> deserializeImageLabels(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        try {
+            return OBJECT_MAPPER.readValue(raw, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            // Don't let a malformed/legacy value blow up template loading —
+            // log it so bad data is visible, but surface an empty list so the
+            // rest of the form still renders instead of failing the whole request.
+            log.warn("Failed to parse imageLabels JSON, raw value: '{}'", raw, e);
+            return List.of();
+        }
     }
 
 }

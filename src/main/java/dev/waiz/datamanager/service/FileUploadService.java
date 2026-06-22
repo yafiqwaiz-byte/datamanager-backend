@@ -167,5 +167,20 @@ public class FileUploadService {
         user user = userrepository.findByAccount_AccountId(acc.getAccountId())
                           .orElseThrow(() -> new RuntimeException("User not found"));
                           return fileUploadRepository.findByUser(user);
-                        }
+     }
+
+    public String saveFormImage(MultipartFile file) throws IOException{
+
+        String originName = file.getOriginalFilename();
+        String extension = originName != null && originName.contains(".")? originName.substring(originName.lastIndexOf(".")):"";
+
+        String filename = UUID.randomUUID() + extension;
+        String uploadDir = "uploads/form-images/";
+
+        Path savePath = Paths.get(uploadDir + filename);
+        Files.createDirectories(savePath.getParent());
+        Files.write(savePath,file.getBytes());
+
+        return uploadDir + filename;
+    }
 }

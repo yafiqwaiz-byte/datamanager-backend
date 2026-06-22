@@ -14,5 +14,6 @@ public class AnswerResponseDTO {
     private UUID answerId;
     private String fieldLabel;
     private String answerValue;
+    private Integer fieldOrder;
 
 }
