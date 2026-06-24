@@ -20,9 +20,15 @@ public class POAgingReportDTO {
     private Double percentAging;
     private Integer marks;
 
-    // Updated after clearing
+    // Updated (after cleared PO upload)
     private Integer updatedCountPOOver180;
     private Double updatedOutstandingValue;
     private Double updatedPercentAging;
     private Integer updatedMarks;
+
+    // Update Partial payment info
+    private Integer fullyClearedCount; //POs fully paid
+    private Integer partiallyPaidCount; // POs partially paid (value remaining > 0)
+    private Double totalClearedAmount; // total GR/SA received so far 
+    private String remarks; //human-readable summary
 }

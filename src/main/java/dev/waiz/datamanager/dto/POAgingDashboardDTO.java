@@ -12,18 +12,23 @@ public class POAgingDashboardDTO {
     private UUID uploadId;
     // ── KPI Cards ──────────────────────────────────────────────────
     private Integer totalPOOver180;
-    private Integer updatedTotalPOOver180;
-    private Integer totalPOCleared;         
-
+    private Integer updatedTotalPOOver180; //still outstanding after clearing         
     private Double totalOutstandingValue;    
-    private Double updatedTotalOutstandingValue; 
+    private Double updatedTotalOutstandingValue;  //remaining after clearing
 
     private Double averagePercentAging;
     private Double updatedAveragePercentAging;  
+
+    // Station mark counts 
     private Integer totalStations;           
-    private Integer highAgingStations;
+    private Integer highAgingStations; 
     private Integer mediumAgingStations;
     private Integer lowAgingStations;
+
+    // Clearing summary 
+    private Integer totalPOCleared; //fully cleared POs
+    private Integer totalPOPartiallyPaid; //partially paid,still in aging
+    private Double totalClearedAmount; // total GR/SA value received;
 
     // ── Percentile thresholds ──────────────────────────────────────
     private Double percentile33;

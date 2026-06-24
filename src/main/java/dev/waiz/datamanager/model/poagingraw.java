@@ -52,7 +52,8 @@ public class poagingraw {
 
     @Column(name = "company_name")
     private String companyName;
-// ── Vendor Info ────────────────────────────────────────────────
+
+    // ── Vendor Info ────────────────────────────────────────────────
     @Column(name = "vendor_acc_no")
     private String vendorAccNo;
 
@@ -140,7 +141,14 @@ public class poagingraw {
 
     @Column(name = "is_cleared")
     @Builder.Default
-    private Boolean isCleared = false;      // ← From CLEARED? column
+    private Boolean isCleared = false;      // ← true only when fully paid
+
+    @Column(name = "cleared_amount") // GR/SA value from cleared file
+    @Builder.Default
+    private Double clearedAmount = 0.0;
+
+    @Column(name = "remaining_balance") // outstandingPOValue - clearedAmount, null = not yet processed by cleared file
+    private Double remainingBalance;
 
     @Column(name = "cleared_at")
     private OffsetDateTime clearedAt;

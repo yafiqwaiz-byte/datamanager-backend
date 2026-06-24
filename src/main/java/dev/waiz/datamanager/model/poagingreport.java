@@ -50,7 +50,7 @@ public class poagingreport {
     @Column(name = "subzone")
     private String subzone;          // e.g. "P1"
 
-    //Core metrics
+    //Core metrics -Original Count(before clearing)
 
     @Column(name = "count_po_over_180")
     private Integer countPOOver180;
@@ -79,6 +79,23 @@ public class poagingreport {
 
     @Column(name = "updated_marks")
     private Integer updatedMarks;
+
+    //- Partial payment tracking 
+
+    @Column(name = "fully_cleared_count") // POs fully paid(value remaining = 0)
+    @Builder.Default
+    private Integer fullyClearedCount = 0;
+
+    @Column(name = "partially_paid_count") // POs partially paid( value remaining >0)
+    @Builder.Default
+    private Integer partiallyPaidCount = 0;
+
+    @Column(name = "total_cleared_amount") // total GR/SA value received
+    @Builder.Default
+    private Double totalClearedAmount = 0.0;
+
+    @Column(name = "remarks",columnDefinition = "TEXT")
+    private String remarks;
 
     @Column(name = "created_at")
     private OffsetDateTime createdAt;

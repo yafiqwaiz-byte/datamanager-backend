@@ -32,11 +32,10 @@ public class POAgingController {
     public ResponseEntity<?> uploadRawPOData(@RequestParam("file") MultipartFile file){
         try{
 
-            byte[] fileBytes = file.getBytes();
 
-            fileupload upload = fileUploadService.savePOAgingUpload(file.getOriginalFilename(),file.getContentType(),fileBytes);
+            fileupload upload = fileUploadService.savePOAgingUpload(file.getOriginalFilename(),file.getContentType(),file.getBytes());
 
-            POAgingDashboardDTO result = poAgingService.processRawPODataFromBytes(fileBytes,upload.getUploadId());
+            POAgingDashboardDTO result = poAgingService.processRawPOData(file,upload.getUploadId());
 
             result.setUploadId(upload.getUploadId());
             return ResponseEntity.ok(result);

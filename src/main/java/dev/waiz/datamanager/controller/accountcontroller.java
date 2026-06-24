@@ -300,7 +300,7 @@ public class accountcontroller {
     @Transactional
     @PostMapping("/complete-profile/user")
     public ResponseEntity<?> completeUserProfile(@RequestBody CompleteUserProfileRequest request,
-                                                 HttpServletRequest httpRequest) {
+    HttpServletRequest httpRequest) {
         try {
             // Read username from cookie-based token (set by JwtAuthFilter in SecurityContext)
             String username = extractUsernameFromRequest(httpRequest);
@@ -349,7 +349,7 @@ public class accountcontroller {
     @Transactional
     @PostMapping("/complete-profile/staff")
     public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileRequest request,
-                                                  HttpServletRequest httpRequest) {
+    HttpServletRequest httpRequest) {
         try {
             String username = extractUsernameFromRequest(httpRequest);
             if (username == null) {
@@ -444,7 +444,7 @@ public class accountcontroller {
 
     @PatchMapping("/{accountId}/password")
     public ResponseEntity<?> updateAccountPassword(@PathVariable UUID accountId,
-                                                   @RequestBody PasswordChangeRequest passwordRequest) {
+        @RequestBody PasswordChangeRequest passwordRequest) {
         account updated = accountService.updateAccountPassword(accountId, passwordRequest.newPassword);
         if (updated != null) return ResponseEntity.ok("Password updated successfully");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");

@@ -20,7 +20,7 @@ import java.util.Map;
 @Slf4j
 public class GeocodingService {
 
-    @Value("${google.maps.api.key}")
+    @Value("${google.maps.api-key}")
     private String googleMapsApiKey;
 
     private final RestTemplate restTemplate = new RestTemplate();
