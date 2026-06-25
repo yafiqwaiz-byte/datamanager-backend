@@ -1,4 +1,23 @@
 spring:
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            trust: smtp.gmail.com
+  mvc:
+    static-path-pattern: /static/**
+  web:
+    resources:
+      static-locations: classpath:/static/
   servlet:
     multipart:
       enabled: true
@@ -19,8 +38,10 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        "[hibernate.jdbc.batch_size]": 500
+        "[hibernate.jdbc.batch_size]": 50
         "[hibernate.order_inserts]": true
+        "[hibernate.order_updates]": true
+        "[hibernate.jdbc.batch_versioned_data]": true
 
 jwt:
   secret: ${JWT_SECRET}
@@ -28,6 +49,19 @@ jwt:
 google:
   client-id: ${GOOGLE_CLIENT_ID}
   client-secret: ${GOOGLE_CLIENT_SECRET}
+  maps:
+    api-key: ${GOOGLE_MAPS_API_KEY}
 
+app:
+  superadmin:
+    username: ${SUPERADMIN_USERNAME}
+    password: ${SUPERADMIN_PASSWORD}
+  frontend:
+    url: http://localhost:3000
+
+gemini:
+  api:
+    key: ${GEMINI_API_KEY}
+    url: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
 
  

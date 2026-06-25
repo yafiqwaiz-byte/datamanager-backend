@@ -1,32 +1,47 @@
+# src/test/resources/application.yaml
+# Test configuration — uses H2 in-memory database, no real credentials needed
+
 spring:
-  servlet:
-    multipart:
-      enabled: true
-      max-file-size: 10MB
-      max-request-size: 10MB 
-  application:
-    name: datamanager
   datasource:
-    url: jdbc:h2:mem:testdb
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     username: sa
-    password: 
+    password:
     driver-class-name: org.h2.Driver
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: create-drop
     show-sql: false
-    database-platform: org.hibernate.dialect.H2Dialect
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
-        "[hibernate.jdbc.batch_size]": 500
-        "[hibernate.order_inserts]": true
+  mail:
+    host: localhost
+    port: 25
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
 
 jwt:
-  secret: test-secret-key-for-testing-purposes-only
+  secret: test-secret-key-for-unit-testing-only-not-real
   expiration: 3600000
 
 google:
   client-id: test-client-id
   client-secret: test-client-secret
+  maps:
+    api-key: test-maps-key
+
+app:
+  superadmin:
+    username: testadmin
+    password: testpassword
+  frontend:
+    url: http://localhost:3000
+
+gemini:
+  api:
+    key: test-gemini-key
+    url: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent

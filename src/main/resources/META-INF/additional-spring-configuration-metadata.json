@@ -1,25 +1,53 @@
-{
-  "properties": [
-    {
-      "name": "jwt.secret",
-      "type": "java.lang.String",
-      "description": "JWT secret key for signing tokens"
-    },
-    {
-      "name": "jwt.expiration",
-      "type": "java.lang.Long",
-      "description": "JWT token expiration time in milliseconds",
-      "defaultValue": 3600000
-    },
-    {
-      "name": "google.client-id",
-      "type": "java.lang.String",
-      "description": "Google OAuth 2.0 Client ID"
-    },
-    {
-      "name": "google.client-secret",
-      "type": "java.lang.String",
-      "description": "Google OAuth 2.0 Client Secret"
-    }
-  ]
-}
+{"properties": [
+  {
+    "name": "jwt.secret",
+    "type": "java.lang.String",
+    "description": "JWT secret key for signing tokens"
+  },
+  {
+    "name": "jwt.expiration",
+    "type": "java.lang.Long",
+    "description": "JWT token expiration time in milliseconds",
+    "defaultValue": 3600000
+  },
+  {
+    "name": "google.client-id",
+    "type": "java.lang.String",
+    "description": "Google OAuth 2.0 Client ID"
+  },
+  {
+    "name": "google.client-secret",
+    "type": "java.lang.String",
+    "description": "Google OAuth 2.0 Client Secret"
+  },
+  {
+    "name": "app.superadmin.username",
+    "type": "java.lang.String",
+    "description": "Default superadmin username"
+  },
+  {
+    "name": "app.superadmin.password",
+    "type": "java.lang.String",
+    "description": "Default superadmin password"
+  },
+  {
+    "name": "app.frontend.url",
+    "type": "java.lang.String",
+    "description": "Frontend application URL"
+  },
+  {
+    "name": "gemini.api.key",
+    "type": "java.lang.String",
+    "description": "Google Gemini API Key"
+  },
+  {
+    "name": "gemini.api.url",
+    "type": "java.lang.String",
+    "description": "Google Gemini API URL"
+  },
+  {
+    "name": "google.maps.api-key",
+    "type": "java.lang.String",
+    "description": "A description for 'google.maps.api-key'"
+  }
+]}
