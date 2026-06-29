@@ -50,6 +50,9 @@ public class fieldmapping {
     @Column(name = "status")
     private String status;
 
+    @Column(columnDefinition = "TEXT")
+    private String validationSummary;
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 }

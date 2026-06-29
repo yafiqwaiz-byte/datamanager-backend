@@ -1,22 +1,19 @@
 package dev.waiz.datamanager.service;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 
-
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import org.springframework.beans.factory.annotation.*;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
-
-import java.util.LinkedHashMap;
-
 
 @Service
 @RequiredArgsConstructor
@@ -32,27 +29,285 @@ public class GeminiService {
     private final ObjectMapper objectMapper;
     private final OkHttpClient httpClient = new OkHttpClient();
 
-    // ── Existing: dashboard analysis ──────────────────────────────────────────
-    public Map<String,Object> analyzeAndSuggestDashboard(List<String> columns,
-            List<Map<String,Object>> sampleRows) throws Exception {
-        String prompt = buildPrompt(columns, sampleRows);
+    // ══════════════════════════════════════════════════════════════
+    //  PO Aging Dashboard Analysis
+    // ══════════════════════════════════════════════════════════════
+
+    public Map<String, Object> analyzePOAgingDashboard(
+            Map<String, Object> dashboardData) throws Exception {
+
+        String prompt = buildPOAgingPrompt(dashboardData);
         String response = callGemini(prompt);
         return parseGeminiResponse(response);
     }
 
-    // ── New: OCR → placeholder mapping ───────────────────────────────────────
-    // Called by FieldMappingService for placeholders that the string-matching
-    // pass left empty or couldn't confidently resolve.
-    //
-    // Parameters:
-    //   ocrText          — the full raw OCR text from the uploaded image
-    //   unmappedPhs      — placeholders that still need a value (e.g. "[TARIKH]")
-    //   partialResults   — what the string-matching pass already found, so Gemini
-    //                      has context and doesn't re-guess already-resolved fields
-    //
-    // Returns a Map<placeholder, value> for the unmapped ones only.
-    // Any placeholder Gemini can't find is returned with an empty string so
-    // the caller can still show it as a blank field rather than crashing.
+    private String buildPOAgingPrompt(Map<String, Object> data) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("You are a financial analyst for TNB (Tenaga Nasional Berhad) ");
+        sb.append("SBU Asset Development (AD) Northern Region.\n");
+        sb.append("The Northern Region covers: Perlis, Pulau Pinang, Kedah, and Perak.\n\n");
+
+        sb.append("You are analyzing a PO Aging Dashboard that tracks outstanding ");
+        sb.append("Purchase Orders (POs) that have exceeded 180 days.\n\n");
+
+        sb.append("MARK SYSTEM (percentile-based, bias-free):\n");
+        sb.append("  Mark 1 = High Aging   (% aging > 66th percentile) → RED    ❌\n");
+        sb.append("  Mark 2 = Medium Aging (% aging > 33rd percentile) → YELLOW ⚠️\n");
+        sb.append("  Mark 3 = Low Aging    (% aging ≤ 33rd percentile) → GREEN  ✅\n");
+        sb.append("  Stations with 0 PO > 180 days automatically get Mark 3.\n\n");
+
+        sb.append("SUBZONE STRUCTURE:\n");
+        sb.append("  P1  = Pulau Pinang 1 (TNB Seberang Jaya, TNB Pulau Pinang)\n");
+        sb.append("  P2  = Pulau Pinang 2 (TNB Nibong Tebal, TNB Bertam, TNB Bayan Baru)\n");
+        sb.append("  SGP/KLM = Sungai Petani / Kulim (6 stations)\n");
+        sb.append("  ALS/KAN = Alor Setar / Kangar (6 stations)\n");
+        sb.append("  A1  = Perak A1 (6 stations — Ipoh, Ulu Kinta, Batu Gajah, etc)\n");
+        sb.append("  A2  = Perak A2 (4 stations — Sri Manjung, Teluk Intan, etc)\n");
+        sb.append("  A3  = Perak A3 (4 stations — Taiping, Bagan Serai, etc)\n\n");
+
+        sb.append("CURRENT DASHBOARD DATA:\n");
+        sb.append("─────────────────────────────────────────\n");
+
+        sb.append("KPI SUMMARY:\n");
+        sb.append("  Total PO > 180 days (original):  ")
+          .append(data.getOrDefault("totalPOOver180", "N/A")).append("\n");
+        sb.append("  Total PO > 180 days (updated):   ")
+          .append(data.getOrDefault("updatedTotalPOOver180", "N/A")).append("\n");
+        sb.append("  Total Outstanding (original):    RM ")
+          .append(data.getOrDefault("totalOutstandingValue", "N/A")).append("\n");
+        sb.append("  Total Outstanding (updated):     RM ")
+          .append(data.getOrDefault("updatedTotalOutstandingValue", "N/A")).append("\n");
+        sb.append("  Average % Aging:                 ")
+          .append(data.getOrDefault("averagePercentAging", "N/A")).append("%\n");
+        sb.append("  High Aging Stations (Mark 1):    ")
+          .append(data.getOrDefault("highAgingStations", "N/A")).append("\n");
+        sb.append("  Medium Aging Stations (Mark 2):  ")
+          .append(data.getOrDefault("mediumAgingStations", "N/A")).append("\n");
+        sb.append("  Low Aging Stations (Mark 3):     ")
+          .append(data.getOrDefault("lowAgingStations", "N/A")).append("\n");
+        sb.append("  Total Stations:                  ")
+          .append(data.getOrDefault("totalStations", "N/A")).append("\n");
+        sb.append("  POs Fully Cleared:               ")
+          .append(data.getOrDefault("totalPOCleared", "N/A")).append("\n");
+        sb.append("  POs Partially Paid:              ")
+          .append(data.getOrDefault("totalPOPartiallyPaid", "N/A")).append("\n");
+        sb.append("  Total Cleared Amount:            RM ")
+          .append(data.getOrDefault("totalClearedAmount", "N/A")).append("\n");
+        sb.append("  33rd Percentile Threshold:       ")
+          .append(data.getOrDefault("percentile33", "N/A")).append("%\n");
+        sb.append("  66th Percentile Threshold:       ")
+          .append(data.getOrDefault("percentile66", "N/A")).append("%\n\n");
+
+        Object stationData = data.get("stationData");
+        if (stationData instanceof List) {
+            sb.append("STATION BREAKDOWN (top stations by PO count):\n");
+            List<?> stations = (List<?>) stationData;
+            int limit = Math.min(10, stations.size());
+            for (int i = 0; i < limit; i++) {
+                Object s = stations.get(i);
+                if (s instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> station = (Map<String, Object>) s;
+                    sb.append("  ").append(station.getOrDefault("stationName", "?"))
+                      .append(" | BA: ").append(station.getOrDefault("busArea", "?"))
+                      .append(" | Subzone: ").append(station.getOrDefault("subzone", "?"))
+                      .append(" | PO>180: ").append(station.getOrDefault("updatedCountPOOver180", "?"))
+                      .append(" | Outstanding: RM ").append(station.getOrDefault("updatedOutstandingValue", "?"))
+                      .append(" | % Aging: ").append(station.getOrDefault("updatedPercentAging", "?"))
+                      .append("% | Mark: ").append(station.getOrDefault("updatedMarks", "?"));
+                    Object remarks = station.get("remarks");
+                    if (remarks != null && !remarks.toString().isEmpty()) {
+                        sb.append(" | ").append(remarks);
+                    }
+                    sb.append("\n");
+                }
+            }
+            sb.append("\n");
+        }
+
+        Object subzoneSummary = data.get("subzoneSummary");
+        if (subzoneSummary instanceof List) {
+            sb.append("SUBZONE SUMMARY:\n");
+            List<?> subzones = (List<?>) subzoneSummary;
+            for (Object sz : subzones) {
+                if (sz instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> subzone = (Map<String, Object>) sz;
+                    sb.append("  ").append(subzone.getOrDefault("subzone", "?"))
+                      .append(" (").append(subzone.getOrDefault("subzoneLabel", "?")).append(")")
+                      .append(" | Stations: ").append(subzone.getOrDefault("totalStations", "?"))
+                      .append(" | PO>180: ").append(subzone.getOrDefault("updatedTotalPOOver180", "?"))
+                      .append(" | Outstanding: RM ").append(subzone.getOrDefault("updatedOutstandingValue", "?"))
+                      .append(" | Mark: ").append(subzone.getOrDefault("marks", "?"))
+                      .append("\n");
+                }
+            }
+            sb.append("\n");
+        }
+
+        sb.append("─────────────────────────────────────────\n\n");
+
+        sb.append("Based on the above PO Aging data, provide a comprehensive ");
+        sb.append("management analysis in the following JSON format.\n\n");
+
+        sb.append("Respond ONLY with valid JSON, no markdown, no explanation:\n");
+        sb.append("{\n");
+        sb.append("  \"executiveSummary\": \"2-3 sentence summary for senior management\",\n");
+        sb.append("  \"overallStatus\": \"Critical / Concerning / Moderate / Good\",\n");
+        sb.append("  \"criticalStations\": [\n");
+        sb.append("    {\n");
+        sb.append("      \"station\": \"station name\",\n");
+        sb.append("      \"reason\": \"why this station is critical\",\n");
+        sb.append("      \"urgency\": \"Immediate / High / Medium\"\n");
+        sb.append("    }\n");
+        sb.append("  ],\n");
+        sb.append("  \"subzoneAnalysis\": [\n");
+        sb.append("    {\n");
+        sb.append("      \"subzone\": \"subzone code\",\n");
+        sb.append("      \"status\": \"assessment of this subzone\",\n");
+        sb.append("      \"recommendation\": \"specific action for this subzone\"\n");
+        sb.append("    }\n");
+        sb.append("  ],\n");
+        sb.append("  \"keyRisks\": [\n");
+        sb.append("    \"risk 1\",\n");
+        sb.append("    \"risk 2\",\n");
+        sb.append("    \"risk 3\"\n");
+        sb.append("  ],\n");
+        sb.append("  \"positiveObservations\": [\n");
+        sb.append("    \"positive finding 1\",\n");
+        sb.append("    \"positive finding 2\"\n");
+        sb.append("  ],\n");
+        sb.append("  \"recommendedActions\": [\n");
+        sb.append("    {\n");
+        sb.append("      \"action\": \"specific action to take\",\n");
+        sb.append("      \"priority\": \"High / Medium / Low\",\n");
+        sb.append("      \"target\": \"which station or subzone\",\n");
+        sb.append("      \"timeline\": \"Immediate / 1 week / 1 month\"\n");
+        sb.append("    }\n");
+        sb.append("  ],\n");
+        sb.append("  \"financialImpact\": \"assessment of total outstanding value and clearing progress\",\n");
+        sb.append("  \"clearingProgress\": \"assessment of how well cleared POs are being processed\",\n");
+        sb.append("  \"trendAssessment\": \"overall trend — improving, stable, or worsening\"\n");
+        sb.append("}\n\n");
+        sb.append("CRITICAL: Start with { and end with }. No text before or after JSON.\n");
+
+        return sb.toString();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  NEW — Pass 0: Structured document extraction
+    //  Called BEFORE string matching to extract a clean JSON
+    //  representation of the document (type, sender, recipient,
+    //  dates, details, etc.) from raw OCR text.
+    // ══════════════════════════════════════════════════════════════
+
+    public Map<String, Object> extractDocumentStructure(String ocrText) throws Exception {
+
+        String prompt = buildStructuredExtractionPrompt(ocrText);
+        String rawResponse = callGemini(prompt);
+
+        try {
+            String cleaned = rawResponse
+                .replace("```json", "")
+                .replace("```", "")
+                .trim();
+
+            int start = cleaned.indexOf("{");
+            int end   = cleaned.lastIndexOf("}");
+            if (start == -1 || end == -1) {
+                log.warn("Gemini structured extraction returned no JSON — raw: {}", cleaned);
+                return Collections.emptyMap();
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = objectMapper.readValue(
+                cleaned.substring(start, end + 1), Map.class);
+
+            log.info("Pass 0 structured extraction — documentType: {}",
+                result.getOrDefault("documentType", "unknown"));
+
+            return result;
+
+        } catch (Exception e) {
+            log.warn("Failed to parse structured extraction response: {}", e.getMessage());
+            return Collections.emptyMap();
+        }
+    }
+
+    private String buildStructuredExtractionPrompt(String ocrText) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("You are an expert document parser for Malaysian government ");
+        sb.append("and corporate documents (Malay/English).\n\n");
+
+        sb.append("Extract structured information from the OCR text below.\n");
+        sb.append("Return ONLY valid JSON, no markdown, no explanation.\n\n");
+
+        sb.append("JSON structure to follow:\n");
+        sb.append("{\n");
+        sb.append("  \"documentType\": \"e.g. Leave Application / Appointment Letter / Invoice / Memo\",\n");
+        sb.append("  \"sender\": {\n");
+        sb.append("    \"name\": \"\",\n");
+        sb.append("    \"staffId\": \"\",\n");
+        sb.append("    \"company\": \"\",\n");
+        sb.append("    \"position\": \"\",\n");
+        sb.append("    \"department\": \"\",\n");
+        sb.append("    \"email\": \"\",\n");
+        sb.append("    \"phone\": \"\"\n");
+        sb.append("  },\n");
+        sb.append("  \"recipient\": {\n");
+        sb.append("    \"name\": \"\",\n");
+        sb.append("    \"position\": \"\",\n");
+        sb.append("    \"department\": \"\",\n");
+        sb.append("    \"company\": \"\"\n");
+        sb.append("  },\n");
+        sb.append("  \"subject\": \"\",\n");
+        sb.append("  \"dates\": {\n");
+        sb.append("    \"documentDate\": \"\",\n");
+        sb.append("    \"startDate\": \"\",\n");
+        sb.append("    \"endDate\": \"\",\n");
+        sb.append("    \"effectiveDate\": \"\"\n");
+        sb.append("  },\n");
+        sb.append("  \"referenceNumber\": \"\",\n");
+        sb.append("  \"purpose\": \"\",\n");
+        sb.append("  \"details\": {\n");
+        sb.append("    \"leaveType\": \"\",\n");
+        sb.append("    \"position\": \"\",\n");
+        sb.append("    \"salary\": \"\",\n");
+        sb.append("    \"location\": \"\",\n");
+        sb.append("    \"duration\": \"\"\n");
+        sb.append("  },\n");
+        sb.append("  \"attachments\": [],\n");
+        sb.append("  \"remarks\": \"\"\n");
+        sb.append("}\n\n");
+
+        sb.append("RULES:\n");
+        sb.append("1. Detect document language (Malay/English/mixed) automatically.\n");
+        sb.append("2. Common Malay field mappings:\n");
+        sb.append("   Tarikh = date, Nama = name, Jawatan = position,\n");
+        sb.append("   Syarikat = company, Alamat = address,\n");
+        sb.append("   Dari/Daripada = sender, Kepada = recipient,\n");
+        sb.append("   Perkara/Perihal = subject, Rujukan = reference number,\n");
+        sb.append("   Bahagian/Jabatan = department, Gaji = salary.\n");
+        sb.append("3. Leave empty string \"\" for fields not found — do NOT invent values.\n");
+        sb.append("4. Dates: return in YYYY-MM-DD format if possible.\n");
+        sb.append("5. Return only the JSON object, starting with { and ending with }.\n\n");
+
+        sb.append("OCR TEXT:\n");
+        sb.append("---START---\n");
+        sb.append(ocrText);
+        sb.append("\n---END---\n");
+
+        return sb.toString();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  OCR → Placeholder Mapping  (Pass 2 fallback)
+    //  Called by FieldMappingService for placeholders that Pass 0
+    //  and Pass 1 string-matching could not resolve.
+    // ══════════════════════════════════════════════════════════════
+
     @SuppressWarnings("unchecked")
     public Map<String, String> mapOcrToPlaceholders(
             String ocrText,
@@ -62,7 +317,6 @@ public class GeminiService {
         String prompt = buildOcrMappingPrompt(ocrText, unmappedPhs, partialResults);
         String rawResponse = callGemini(prompt);
 
-        // Parse JSON response
         try {
             String cleaned = rawResponse
                 .replace("```json", "")
@@ -79,8 +333,6 @@ public class GeminiService {
             Map<String, String> result = objectMapper.readValue(
                 cleaned.substring(start, end + 1), Map.class);
 
-            // Ensure every requested placeholder has an entry (even if blank)
-            // so the caller never gets a NullPointerException
             for (String ph : unmappedPhs) {
                 result.putIfAbsent(ph, "");
             }
@@ -105,9 +357,10 @@ public class GeminiService {
         StringBuilder sb = new StringBuilder();
 
         sb.append("You are an expert document parser for Malaysian government and corporate documents.\n");
-        sb.append("Your task is to extract specific field values from OCR-extracted text.\n\n");
+        sb.append("You specialize in Malay/English mixed documents including letters, memos, forms, and HR documents.\n\n");
 
-        sb.append("CONTEXT — what has already been extracted by string matching:\n");
+        // ── Already resolved context ──────────────────────────────
+        sb.append("CONTEXT — fields already successfully extracted (DO NOT re-map these):\n");
         if (partialResults.isEmpty()) {
             sb.append("  (nothing extracted yet)\n");
         } else {
@@ -116,42 +369,93 @@ public class GeminiService {
         }
         sb.append("\n");
 
+        // ── Full OCR text ─────────────────────────────────────────
         sb.append("FULL OCR TEXT (may contain noise, line breaks, Malay/English mix):\n");
         sb.append("---START---\n");
         sb.append(ocrText);
         sb.append("\n---END---\n\n");
 
-        sb.append("PLACEHOLDERS TO RESOLVE (you must find a value for each):\n");
+        // ── Placeholders to resolve ───────────────────────────────
+        sb.append("UNRESOLVED PLACEHOLDERS (you must attempt to find a value for each):\n");
         for (String ph : unmappedPlaceholders) {
-            // Convert [NAMA_PEKERJA] → "NAMA PEKERJA" as a hint
-            String hint = ph.replace("[", "").replace("]", "").replace("_", " ");
-            sb.append("  ").append(ph).append("  (meaning: ").append(hint).append(")\n");
+            String hint = ph.replace("[", "").replace("]", "").replace("_", " ").toLowerCase();
+            String malayHint = getMalayHint(hint);
+            sb.append("  ").append(ph)
+              .append("  (meaning: ").append(hint)
+              .append(malayHint.isEmpty() ? "" : " | Malay equivalent: " + malayHint)
+              .append(")\n");
         }
         sb.append("\n");
 
-        sb.append("RULES:\n");
-        sb.append("1. Use the OCR text to find the best matching value for each placeholder.\n");
-        sb.append("2. Handle common Malay abbreviations: ");
-        sb.append("Tkh/Tarikh=date, Bil=number/reference, No=number, ");
-        sb.append("Nama=name, Syarikat=company, Alamat=address, ");
-        sb.append("Tel=phone, Faks=fax, Jawatan=position/title.\n");
-        sb.append("3. If the OCR text has noise (e.g. 'Nam4' instead of 'Nama'), ");
-        sb.append("still try to match it.\n");
-        sb.append("4. For date fields, return the date in the format found in the document.\n");
-        sb.append("5. If a value genuinely cannot be found, return an empty string \"\" for it.\n");
-        sb.append("6. Do NOT invent values — only extract what is actually in the OCR text.\n");
-        sb.append("7. Do NOT re-map placeholders already in the CONTEXT above.\n\n");
+        // ── Rules ─────────────────────────────────────────────────
+        sb.append("EXTRACTION RULES:\n");
+        sb.append("1. Extract values ONLY from the OCR text — do NOT invent or assume values.\n");
+        sb.append("2. If a field cannot be found, return empty string \"\" — never null.\n");
+        sb.append("3. Do NOT re-map placeholders already listed in CONTEXT above.\n");
+        sb.append("4. Handle OCR noise: 'Nam4'→'Nama', 'Tanikh'→'Tarikh', '0'→'O' in names, etc.\n");
+        sb.append("5. Dates: return in the exact format found in the document (e.g. '15 Januari 2026').\n");
+        sb.append("6. Names: include full name as written, preserve 'bin'/'binti'/'a/l'/'a/p'.\n");
+        sb.append("7. Reference numbers: preserve original format (e.g. 'TNB/AD/2026/001').\n\n");
 
-        sb.append("Respond ONLY with a valid JSON object mapping each placeholder to its value.\n");
-        sb.append("No markdown, no explanation, no text before or after the JSON.\n");
-        sb.append("Example format:\n");
+        sb.append("MALAY FIELD ABBREVIATIONS (use these to locate values in OCR text):\n");
+        sb.append("  Tarikh / Tkh         = date\n");
+        sb.append("  Nama                 = name\n");
+        sb.append("  Jawatan              = position / title\n");
+        sb.append("  Bahagian / Jabatan   = department / division\n");
+        sb.append("  Syarikat             = company\n");
+        sb.append("  Alamat               = address\n");
+        sb.append("  No. Tel / Tel        = phone number\n");
+        sb.append("  Faks                 = fax\n");
+        sb.append("  Bil. / No. Rujukan   = reference number\n");
+        sb.append("  Kepada               = recipient (to)\n");
+        sb.append("  Daripada / Dari      = sender (from)\n");
+        sb.append("  Perkara / Perihal    = subject / regarding\n");
+        sb.append("  Gaji / Emolumen      = salary\n");
+        sb.append("  Cuti                 = leave\n");
+        sb.append("  Tempoh               = duration / period\n");
+        sb.append("  Mulai / Bermula      = start date\n");
+        sb.append("  Hingga / Sehingga    = end date\n\n");
+
+        // ── Output format ─────────────────────────────────────────
+        sb.append("RESPOND ONLY with a valid JSON object. No markdown, no explanation.\n");
+        sb.append("Every placeholder listed above MUST appear as a key in the response.\n");
+        sb.append("Example:\n");
         sb.append("{\n");
         sb.append("  \"[TARIKH]\": \"15 Januari 2026\",\n");
         sb.append("  \"[NAMA_PEKERJA]\": \"Ahmad bin Ali\",\n");
+        sb.append("  \"[JAWATAN]\": \"Jurutera\",\n");
         sb.append("  \"[NOMBOR_RUJUKAN]\": \"\"\n");
         sb.append("}\n");
+        sb.append("CRITICAL: Start with { and end with }. No text before or after.\n");
 
         return sb.toString();
+    }
+
+    // ── Malay hint lookup for common placeholder names ────────────
+    private String getMalayHint(String englishHint) {
+        Map<String, String> hints = Map.ofEntries(
+            Map.entry("name",             "Nama"),
+            Map.entry("staff name",       "Nama Pekerja"),
+            Map.entry("staff id",         "No. Pekerja / ID Pekerja"),
+            Map.entry("position",         "Jawatan"),
+            Map.entry("department",       "Bahagian / Jabatan"),
+            Map.entry("date",             "Tarikh"),
+            Map.entry("start date",       "Tarikh Mula / Mulai"),
+            Map.entry("end date",         "Tarikh Akhir / Hingga"),
+            Map.entry("effective date",   "Tarikh Berkuat Kuasa"),
+            Map.entry("reference number", "No. Rujukan / Bil."),
+            Map.entry("subject",          "Perkara / Perihal"),
+            Map.entry("salary",           "Gaji / Emolumen"),
+            Map.entry("company",          "Syarikat"),
+            Map.entry("address",          "Alamat"),
+            Map.entry("phone",            "No. Tel"),
+            Map.entry("leave type",       "Jenis Cuti"),
+            Map.entry("duration",         "Tempoh"),
+            Map.entry("recipient",        "Kepada"),
+            Map.entry("sender",           "Daripada / Dari"),
+            Map.entry("remarks",          "Catatan / Ulasan")
+        );
+        return hints.getOrDefault(englishHint, "");
     }
 
     private Map<String, String> emptyMap(List<String> placeholders) {
@@ -160,9 +464,12 @@ public class GeminiService {
         return result;
     }
 
-    // ── Shared: call Gemini API ───────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  Shared: call Gemini API
+    // ══════════════════════════════════════════════════════════════
+
     private String callGemini(String prompt) throws Exception {
-        Map<String,Object> requestBody = Map.of(
+        Map<String, Object> requestBody = Map.of(
             "contents", List.of(
                 Map.of("parts", List.of(
                     Map.of("text", prompt)
@@ -179,7 +486,8 @@ public class GeminiService {
 
         try (Response response = httpClient.newCall(request).execute()) {
             if (response.code() == 429) {
-                throw new RuntimeException("AI service is busy. Please wait 1 minute and try again.");
+                throw new RuntimeException(
+                    "AI service is busy. Please wait 1 minute and try again.");
             }
             if (!response.isSuccessful()) {
                 throw new RuntimeException("Gemini API error: " + response.code());
@@ -201,95 +509,12 @@ public class GeminiService {
         }
     }
 
-    // ── Existing: dashboard prompt builder ────────────────────────────────────
-    private String buildPrompt(List<String> columns, List<Map<String,Object>> sampleRows) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("You are a data analyst for TNB (Tenaga Nasional Berhad) ");
-        sb.append("SBU Asset Development (AD) North Region.\n");
-        sb.append("North Region covers: Perlis, Pulau Pinang, Kedah, Perak (Services unit only).\n\n");
-        
-        sb.append("Known TNB report types:\n");
-        sb.append("1. PO Ageing - Purchase Order ageing tracking (columns: Zone, PO No, ");
-        sb.append("Outstanding Amount, Days Outstanding, Resolved, Blocker, Voltage, State)\n");
-        sb.append("2. SN Management - Service Notification tracking (columns: SN No, ");
-        sb.append("Zone, State, Voltage, Status NC04/NC05/NOCO, CSP Amount, PIC)\n");
-        sb.append("3. CAPEX Performance - Capital expenditure tracking\n");
-        sb.append("4. Bank Draft - Bank draft recovery tracking\n");
-        sb.append("5. PF/RC/OEI-OPC - Power factor/reactive compensation tracking\n\n");
-
-        sb.append("TNB Target System:\n");
-        sb.append("- LMT = Lower Management Target (minimum acceptable target)\n");
-        sb.append("- UMT = Upper Management Target (stretch/ambitious target)\n");
-        sb.append("- Status UMT (green) = achieved upper target ✅\n");
-        sb.append("- Status MT (yellow) = achieved LMT but not UMT ⚠️\n");
-        sb.append("- Status Below LMT (red) = failed minimum target ❌\n");
-        sb.append("- Performance is measured as: Current Performance vs LMT vs UMT\n\n");
-
-        sb.append("TNB KPI Categories (Balanced Scorecard):\n");
-        sb.append("- Financial: Cost efficiency, EBIT, Bank Draft Recovery, CAPEX\n");
-        sb.append("- Customer: CSI, SAIDI, DN ReOrg\n");
-        sb.append("- Internal Process: CAPEX delivery, IBR PI rehab, SAIDI Cities\n");
-        sb.append("- Learning & Growth: Zero Fatality, employee development\n\n");
-
-        sb.append("Analyze this dataset and identify what type of TNB report it is.\n\n");
-    
-        sb.append("Columns found: ").append(columns).append("\n\n");
-        sb.append("Sample data (first 3 rows):\n");
-
-        for (int i = 0; i < Math.min(3, sampleRows.size()); i++) {
-            sb.append(sampleRows.get(i)).append("\n");
-        }
-
-        sb.append("\nRespond ONLY in this JSON format, no markdown:\n");
-        sb.append("{\n");
-        sb.append("  \"datasetType\": \"PO Ageing / SN Management / CAPEX Performance / Bank Draft / PF/RC/OEI-OPC / Unknown\",\n");
-        sb.append("  \"datasetDescription\": \"brief description of what this data is about\",\n");
-        sb.append("  \"region\": \"North (Perlis/Pulau Pinang/Kedah/Perak)\",\n");
-        sb.append("  \"suggestedCharts\": [\n");
-        sb.append("    {\n");
-        sb.append("      \"title\": \"Chart title\",\n");
-        sb.append("      \"type\": \"bar/pie/number/line/table\",\n");
-        sb.append("      \"column\": \"exact column name from data\",\n");
-        sb.append("      \"groupBy\": \"column to group by or null\",\n");
-        sb.append("      \"aggregation\": \"sum/count/average/percentage\",\n");
-        sb.append("      \"description\": \"why this chart is useful for TNB management\",\n");
-        sb.append("      \"priority\": \"high/medium/low\"\n");
-        sb.append("    }\n");
-        sb.append("  ],\n");
-        sb.append("  \"kpiMetrics\": [\n");
-        sb.append("    {\n");
-        sb.append("      \"name\": \"KPI metric name\",\n");
-        sb.append("      \"column\": \"column to calculate from\",\n");
-        sb.append("      \"calculation\": \"how to calculate (sum/count/percentage)\",\n");
-        sb.append("      \"target\": \"LMT or UMT target if identifiable\"\n");
-        sb.append("    }\n");
-        sb.append("  ],\n");
-        sb.append("  \"suggestedFilters\": [\n");
-        sb.append("    {\n");
-        sb.append("      \"column\": \"column name\",\n");
-        sb.append("      \"filterType\": \"dropdown/date/range\",\n");
-        sb.append("      \"description\": \"what this filter helps with\"\n");
-        sb.append("    }\n");
-        sb.append("  ],\n");
-        sb.append("  \"keyInsights\": [\"insight 1\", \"insight 2\", \"insight 3\"],\n");
-        sb.append("  \"dataQuality\": {\n");
-        sb.append("    \"numericColumns\": [\"columns suitable for sum/average\"],\n");
-        sb.append("    \"categoricalColumns\": [\"columns suitable for grouping\"],\n");
-        sb.append("    \"dateColumns\": [\"date/time columns\"]\n");
-        sb.append("  },\n");
-        sb.append("  \"recommendedColumns\": [\"most important columns for this report\"],\n");
-        sb.append("  \"businessSummary\": \"one paragraph summary for TNB management\"\n");
-        sb.append("}\n");
-
-        sb.append("\nCRITICAL: Your response must start with { and end with }.");
-        sb.append(" Do NOT include any text before or after the JSON.");
-        sb.append(" Do NOT use markdown. Do NOT explain anything.\n");
-
-        return sb.toString();
-    }
+    // ══════════════════════════════════════════════════════════════
+    //  Shared: parse Gemini JSON response
+    // ══════════════════════════════════════════════════════════════
 
     @SuppressWarnings("unchecked")
-    private Map<String,Object> parseGeminiResponse(String response) {
+    private Map<String, Object> parseGeminiResponse(String response) {
         try {
             String cleaned = response
                 .replace("```json", "")
@@ -300,11 +525,13 @@ public class GeminiService {
             int jsonEnd   = cleaned.lastIndexOf("}");
 
             if (jsonStart == -1 || jsonEnd == -1) {
-                log.error("No JSON found in response: {}", cleaned);
+                log.error("No JSON found in Gemini response: {}", cleaned);
                 return Map.of("error", "AI returned invalid response");
             }
+
             String jsonOnly = cleaned.substring(jsonStart, jsonEnd + 1);
             return objectMapper.readValue(jsonOnly, Map.class);
+
         } catch (Exception e) {
             log.error("Failed to parse Gemini response: {}", e.getMessage());
             return Map.of("error", "Failed to parse AI response");

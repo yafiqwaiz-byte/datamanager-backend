@@ -1,6 +1,7 @@
 package dev.waiz.datamanager.util;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -41,7 +42,7 @@ public class CookieUtil {
         if (request.getCookies() == null) return Optional.empty();
         return Arrays.stream(request.getCookies())
             .filter(c -> name.equals(c.getName()))
-            .map(Cookie::getValue)
+            .map(c -> Objects.requireNonNull(c).getValue())
             .findFirst();
     }
 

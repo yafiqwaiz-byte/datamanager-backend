@@ -378,7 +378,7 @@ public class POAgingService {
         d.setTotalPOCleared(reports.stream().mapToInt(r -> r.getFullyClearedCount() != null ? r.getFullyClearedCount() : 0).sum());
         d.setTotalPOPartiallyPaid(reports.stream().mapToInt(r -> r.getPartiallyPaidCount() != null ? r.getPartiallyPaidCount() : 0).sum());
         d.setTotalClearedAmount(reports.stream().mapToDouble(r -> r.getTotalClearedAmount() != null ? r.getTotalClearedAmount() : 0.0).sum());
-        List<Double> pcts = reports.stream().map(poagingreport::getPercentAging).filter(Objects::nonNull).sorted().collect(Collectors.toList());
+        List<Double> pcts = reports.stream().map(p -> Objects.requireNonNull(p).getPercentAging()).filter(Objects::nonNull).sorted().collect(Collectors.toList());
         d.setPercentile33(percentile(pcts, 33));
         d.setPercentile66(percentile(pcts, 66));
         d.setMarkDistribution(Map.of("High Aging (1)", d.getHighAgingStations(), "Medium Aging (2)", d.getMediumAgingStations(), "Low Aging (3)", d.getLowAgingStations()));
@@ -422,7 +422,7 @@ public class POAgingService {
     // ══════════════════════════════════════════════════════════════
     private void saveRawPORows(List<poagingreport> reports, List<Map<String,String>> poOver180) {
         Map<String, poagingreport> reportMap = reports.stream()
-                .collect(Collectors.toMap(poagingreport::getBusArea, r -> r, (a,b) -> a));
+                .collect(Collectors.toMap(p -> Objects.requireNonNull(p).getBusArea(), r -> r, (a,b) -> a));
         List<poagingraw> rawRows = new ArrayList<>();
         for (Map<String,String> row : poOver180) {
             String busArea = row.getOrDefault("Bus.Area","").trim();

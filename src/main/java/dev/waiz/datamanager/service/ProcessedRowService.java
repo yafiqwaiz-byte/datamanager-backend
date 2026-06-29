@@ -245,7 +245,7 @@ public class ProcessedRowService {
 
             if (values.size() < 2) continue;
 
-            double mean = values.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+            double mean = values.stream().mapToDouble(v -> Objects.requireNonNull(v).doubleValue()).average().orElse(0);
             double stdDev = Math.sqrt(values.stream()
                     .mapToDouble(v -> Math.pow(v - mean, 2))
                     .average().orElse(0));
@@ -330,8 +330,8 @@ public class ProcessedRowService {
         return row.entrySet().stream()
                 .filter(e -> e.getValue() != null && !e.getValue().isEmpty())
                 .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        Map.Entry::getValue,
+                        t -> Objects.requireNonNull(t).getKey(),
+                        t -> Objects.requireNonNull(t).getValue(),
                         (a, b) -> a,
                         LinkedHashMap::new));
     }

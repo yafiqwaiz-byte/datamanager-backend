@@ -2,6 +2,7 @@ package dev.waiz.datamanager.service;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.time.*;
@@ -124,7 +125,7 @@ public class FormTemplateService {
             dto.setFields(
             formfieldrepository.findByTemplate_TemplateId(savedTemplate.getTemplateId())
             .stream()
-            .sorted(Comparator.comparing(formfield::getFieldOrder))
+            .sorted(Comparator.comparing(f -> Objects.requireNonNull(f).getFieldOrder()))
             .map(this::fieldToDTO)
             .collect(Collectors.toList())
     );
@@ -176,7 +177,7 @@ public class FormTemplateService {
             dto.setFields(
             formfieldrepository.findByTemplate_TemplateId(id)
             .stream()
-            .sorted(Comparator.comparing(formfield::getFieldOrder))
+            .sorted(Comparator.comparing(f -> Objects.requireNonNull(f).getFieldOrder()))
             .map(this::fieldToDTO)
             .collect(Collectors.toList())
     );
@@ -227,7 +228,7 @@ public class FormTemplateService {
         dto.setIsActive(t.getIsActive());
         dto.setFields((t.getFields() != null ? t.getFields():List.<formfield>of())
             .stream()
-            .sorted(Comparator.comparing(formfield::getFieldOrder))
+           .sorted(Comparator.comparing(f -> Objects.requireNonNull(f).getFieldOrder()))
             .map(this::fieldToDTO)
             .collect(Collectors.toList())
     );

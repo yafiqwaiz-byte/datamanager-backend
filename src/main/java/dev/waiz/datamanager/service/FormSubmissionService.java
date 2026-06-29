@@ -35,6 +35,7 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -270,7 +271,7 @@ public class FormSubmissionService {
 
         List<formtemplate> templates = formTemplateRepository.findByStaff(currentstaff);
         List<UUID> templateIds = templates.stream()
-            .map(formtemplate::getTemplateId)
+            .map(t -> Objects.requireNonNull(t).getTemplateId())
             .collect(Collectors.toList());
 
         if (templateIds.isEmpty()) {

@@ -77,10 +77,10 @@ public class RefreshTokenService {
 
      /** Find and return account from a valid (non-expired, non-revoked) token string */
     @Transactional(readOnly = true)
-    public Optional<account> getAccountFromToken(String tokenString){
+    public Optional<account> getAccountFromToken(String tokenString) {
         return refreshTokenRepository.findByToken(tokenString)
-        .filter(t -> !t.isRevoked() && !t.isExpired())
-        .map(refreshtoken::getAccount);
+            .filter(t -> !t.isRevoked() && !t.isExpired())
+            .map(r -> r.getAccount());
     }
 
     /** Scheduled cleanup — runs every 24 hours */
