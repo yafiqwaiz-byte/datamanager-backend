@@ -38,4 +38,8 @@ public class POAgingDashboardDTO {
     private List<POAgingReportDTO> stationData;
     private List<SubzoneSummaryDTO> subzoneSummary;
     private Map<String, Integer> markDistribution;
+
+    // POAgingDashboardDTO.java — Additional field for AI analysis
+    private Map<String, Object> aiAnalysis; 
+
 }

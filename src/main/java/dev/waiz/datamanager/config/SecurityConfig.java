@@ -100,6 +100,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                 .requestMatchers("/api/forms/my-submissions").hasRole("USER")
                 .requestMatchers(HttpMethod.GET, "/api/forms/user-templates").hasAnyRole("USER", "STAFF")
                 .requestMatchers(HttpMethod.GET, "/api/forms/**").hasAnyRole("USER", "STAFF")
+                .requestMatchers(HttpMethod.GET, "/api/letters/status/my").hasRole("USER")
 
                 // ── Forms: STAFF only ──────────────────────────────────
                 .requestMatchers(HttpMethod.POST,   "/api/forms/templates").hasRole("STAFF")
@@ -114,8 +115,9 @@ public class SecurityConfig implements WebMvcConfigurer {
 
                 // ── Letters: USER + STAFF (specific endpoints first) ───
                 .requestMatchers(HttpMethod.GET,  "/api/letters/templates/all").hasAnyRole("USER", "STAFF")
+                .requestMatchers(HttpMethod.POST, "/api/letters/submit").hasAnyRole("USER", "STAFF")          
+                .requestMatchers(HttpMethod.GET,  "/api/letters/status/**").hasAnyRole("USER", "STAFF")   
                 .requestMatchers(HttpMethod.POST, "/api/letters/mapping/auto").hasAnyRole("USER", "STAFF")
-                .requestMatchers(HttpMethod.PUT,  "/api/letters/mapping/confirm/**").hasAnyRole("USER", "STAFF")
                 .requestMatchers(HttpMethod.POST, "/api/letters/generate/**").hasAnyRole("USER", "STAFF")
                 .requestMatchers(HttpMethod.GET,  "/api/letters/generated/**").hasAnyRole("USER", "STAFF")
                 .requestMatchers(HttpMethod.GET,  "/api/letters/download/**").hasAnyRole("USER", "STAFF")

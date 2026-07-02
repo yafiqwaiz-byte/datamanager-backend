@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 import dev.waiz.datamanager.dto.POAgingDashboardDTO;
 import dev.waiz.datamanager.model.fileupload;
 import dev.waiz.datamanager.service.FileUploadService;
+import dev.waiz.datamanager.service.POAgingCacheService;
 import dev.waiz.datamanager.service.POAgingService;
 import lombok.RequiredArgsConstructor;
 
@@ -24,52 +25,68 @@ import lombok.RequiredArgsConstructor;
 public class POAgingController {
 
     private final POAgingService poAgingService;
-
     private final FileUploadService fileUploadService;
-   
+    private final POAgingCacheService cacheService;
 
     @PostMapping("/upload/raw")
-    public ResponseEntity<?> uploadRawPOData(@RequestParam("file") MultipartFile file){
-        try{
+    public ResponseEntity<?> uploadRawPOData(@RequestParam("file") MultipartFile file) {
+        try {
+            fileupload upload = fileUploadService.savePOAgingUpload(
+                file.getOriginalFilename(), file.getContentType(), file.getBytes());
 
-
-            fileupload upload = fileUploadService.savePOAgingUpload(file.getOriginalFilename(),file.getContentType(),file.getBytes());
-
-            POAgingDashboardDTO result = poAgingService.processRawPOData(file,upload.getUploadId());
+            POAgingDashboardDTO result = poAgingService.processRawPOData(
+                file, upload.getUploadId());
 
             result.setUploadId(upload.getUploadId());
             return ResponseEntity.ok(result);
-        } catch (Exception e){
-            return ResponseEntity.status(500).body(Map.of("error",e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
-    // Upload cleared PO file
     @PostMapping("/upload/cleared/{uploadId}")
     public ResponseEntity<?> uploadClearedPO(
             @RequestParam("file") MultipartFile file,
             @PathVariable UUID uploadId) {
         try {
-            POAgingDashboardDTO result = 
+            POAgingDashboardDTO result =
                 poAgingService.processClearedPOFile(file, uploadId);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
-    // Get dashboard
     @GetMapping("/dashboard/{uploadId}")
     public ResponseEntity<?> getDashboard(@PathVariable UUID uploadId) {
         try {
-            POAgingDashboardDTO result = 
+            POAgingDashboardDTO result =
                 poAgingService.getDashboardByUploadId(uploadId);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }
 
+    @GetMapping("/dashboard/latest")
+    public ResponseEntity<?> getLatestDashboard() {
+        try {
+            POAgingDashboardDTO result = poAgingService.getLatestDashboard();
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.noContent().build();
+        }
+    }
+
+    @GetMapping("/dashboard/has-cache")
+    public ResponseEntity<Map<String, Boolean>> hasCachedDashboard() {
+        try {
+            boolean hasCache = cacheService.hasCachedDashboard(
+                org.springframework.security.core.context.SecurityContextHolder
+                    .getContext().getAuthentication().getName());
+            return ResponseEntity.ok(Map.of("hasCached", hasCache));
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of("hasCached", false));
+        }
+    }
 }

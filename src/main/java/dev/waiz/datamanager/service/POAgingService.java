@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -28,8 +29,10 @@ public class POAgingService {
     private final POAgingReportRepository reportRepository;
     private final POAgingRawRepository    rawRepository;
     private final FileUploadRepository    fileUploadRepository;
+    private final POAgingCacheService     cacheService;
+    private final GeminiService           geminiService;  // ← ADD THIS
 
-    // ── BA → Subzone mapping (from KML) ───────────────────────────
+    // ── BA → Subzone mapping (unchanged) ──────────────────────────
     private static final Map<String, String> BA_TO_SUBZONE_MAP = Map.ofEntries(
         Map.entry("6231", "P1"),  Map.entry("6260", "P1"),
         Map.entry("6232", "P2"),  Map.entry("6230", "P2"),  Map.entry("6261", "P2"),
@@ -77,6 +80,10 @@ public class POAgingService {
     private static final List<String> SUBZONE_ORDER =
         List.of("P1","P2","SGP/KLM","ALS/KAN","A1","A2","A3");
 
+    private String getCurrentUsername() {
+        return SecurityContextHolder.getContext().getAuthentication().getName();
+    }
+
     // ══════════════════════════════════════════════════════════════
     //  STEP 1: Process Raw PO Data
     // ══════════════════════════════════════════════════════════════
@@ -100,7 +107,6 @@ public class POAgingService {
 
         log.info("Total rows: {}, POs > 180 days: {}", allRows.size(), poOver180.size());
 
-        // Delete existing on re-upload
         List<poagingreport> existing = reportRepository.findByUpload_UploadId(uploadId);
         if (!existing.isEmpty()) {
             existing.forEach(r -> rawRepository.deleteAll(
@@ -135,7 +141,6 @@ public class POAgingService {
                 .partiallyPaidCount(0).totalClearedAmount(0.0).build());
         }
 
-        // Zero-PO stations
         Set<String> processedBAs = new HashSet<>(byBusArea.keySet());
         BA_TO_STATION_MAP.keySet().forEach(busArea -> {
             if (processedBAs.contains(busArea)) return;
@@ -147,39 +152,32 @@ public class POAgingService {
                 .stationName(BA_TO_STATION_MAP.get(busArea))
                 .busArea(busArea)
                 .subzone(BA_TO_SUBZONE_MAP.getOrDefault(busArea,"Unknown"))
-                .countPOOver180(0)
-                .totalPOByStation(totalPO)
-                .totalOutstandingValue(0.0)
-                .percentAging(0.0)
-                .updatedCountPOOver180(0)
-                .updatedOutstandingValue(0.0)
-                .updatedPercentAging(0.0)
-                .fullyClearedCount(0)
-                .partiallyPaidCount(0)
-                .totalClearedAmount(0.0)
+                .countPOOver180(0).totalPOByStation(totalPO)
+                .totalOutstandingValue(0.0).percentAging(0.0)
+                .updatedCountPOOver180(0).updatedOutstandingValue(0.0)
+                .updatedPercentAging(0.0).fullyClearedCount(0)
+                .partiallyPaidCount(0).totalClearedAmount(0.0)
                 .build());
         });
 
         List<poagingreport> markedReports = calculateMarks(reports, false);
         List<poagingreport> saved = reportRepository.saveAll(markedReports);
         saveRawPORows(saved, poOver180);
-        return buildDashboardDTO(saved);
+
+        POAgingDashboardDTO result = buildDashboardDTO(saved);
+
+        // ── Call Gemini ONCE after dashboard is built ──────────────
+        // Result stored in DTO → cached → never called again on reload
+        result.setAiAnalysis(runGeminiAnalysis(result));
+
+        cacheService.saveCache(uploadId, upload, getCurrentUsername(), result, false);
+        log.info("Raw PO dashboard + AI analysis cached for staff: {}", getCurrentUsername());
+
+        return result;
     }
 
     // ══════════════════════════════════════════════════════════════
     //  STEP 2: Process Cleared PO File
-    //
-    //  Cleared file has DIFFERENT format from raw PO:
-    //    - "PO No."      → PO number to match
-    //    - "GR/SA Value" → amount paid (may be partial)
-    //  Other columns are ignored.
-    //
-    //  Rules:
-    //    - Skip rows where PO No. OR GR/SA Value is empty/zero
-    //    - Duplicate PO No. → first come first serve (skip rest)
-    //    - remainingBalance = outstandingPOValue - GR/SA Value
-    //    - isCleared = remainingBalance <= 0 (fully paid)
-    //    - Partially paid POs STAY in aging (remainingBalance > 0)
     // ══════════════════════════════════════════════════════════════
     public POAgingDashboardDTO processClearedPOFile(
             MultipartFile file, UUID uploadId) throws Exception {
@@ -187,7 +185,6 @@ public class POAgingService {
         List<Map<String,String>> rows = readExcelFile(file);
         log.info("Cleared PO file rows: {}", rows.size());
 
-        // ── Build cleared map: PO No. → GR/SA Value (first come first serve)
         Map<String, Double> clearedMap = new LinkedHashMap<>();
         for (Map<String,String> row : rows) {
             String poNo    = row.getOrDefault("PO No.", "").trim();
@@ -195,23 +192,21 @@ public class POAgingService {
             if (poNo.isEmpty() || grSAStr.isEmpty()) continue;
             double grSA = parseDouble(grSAStr);
             if (grSA <= 0) continue;
-            if (!clearedMap.containsKey(poNo)) {       // first come first serve
-                clearedMap.put(poNo, grSA);
-            }
+            if (!clearedMap.containsKey(poNo)) clearedMap.put(poNo, grSA);
         }
         log.info("Unique valid cleared PO entries: {}", clearedMap.size());
 
-        // ── Load reports and raw rows
         List<poagingreport> reports = reportRepository.findByUpload_UploadId(uploadId);
         if (reports.isEmpty())
             throw new RuntimeException("No reports found for upload: " + uploadId
                 + ". Please upload raw PO data first.");
 
+        fileupload upload = reports.get(0).getUpload();
+
         List<poagingraw> allRawRows = reports.stream()
                 .flatMap(r -> rawRepository.findByReport_ReportId(r.getReportId()).stream())
                 .collect(Collectors.toList());
 
-        // ── Apply cleared amounts
         for (poagingraw raw : allRawRows) {
             String poNo = raw.getPoNumber();
             if (clearedMap.containsKey(poNo)) {
@@ -224,7 +219,6 @@ public class POAgingService {
                 raw.setIsCleared(remaining <= 0.0);
                 raw.setClearedAt(OffsetDateTime.now());
             } else {
-                // Not in cleared file — keep remaining = original outstanding
                 if (raw.getRemainingBalance() == null) {
                     raw.setRemainingBalance(
                         raw.getOutstandingPOValue() != null ? raw.getOutstandingPOValue() : 0.0);
@@ -233,7 +227,6 @@ public class POAgingService {
         }
         rawRepository.saveAll(allRawRows);
 
-        // ── Recalculate per-station stats
         for (poagingreport report : reports) {
             List<poagingraw> reportRows =
                 rawRepository.findByReport_ReportId(report.getReportId());
@@ -279,8 +272,106 @@ public class POAgingService {
 
         reports = calculateMarks(reports, true);
         reportRepository.saveAll(reports);
+
+        POAgingDashboardDTO result = buildDashboardDTO(reports);
+
+        // ── Call Gemini ONCE after updated dashboard is built ──────
+        // Cleared file changes the numbers so re-analysis is justified
+        result.setAiAnalysis(runGeminiAnalysis(result));
+
+        cacheService.saveCache(uploadId, upload, getCurrentUsername(), result, true);
+        log.info("Cleared PO dashboard + AI analysis cached for staff: {}", getCurrentUsername());
+
+        return result;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  Gemini Analysis — called ONCE per upload, result is cached
+    //  Never called on getDashboard, getLatest, or page refresh
+    // ══════════════════════════════════════════════════════════════
+    private Map<String, Object> runGeminiAnalysis(POAgingDashboardDTO dashboard) {
+        try {
+            log.info("=== Running Gemini PO Aging Analysis (single call) ===");
+
+            // Build the data map Gemini prompt expects
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("totalPOOver180",           dashboard.getTotalPOOver180());
+            data.put("updatedTotalPOOver180",     dashboard.getUpdatedTotalPOOver180());
+            data.put("totalOutstandingValue",     dashboard.getTotalOutstandingValue());
+            data.put("updatedTotalOutstandingValue", dashboard.getUpdatedTotalOutstandingValue());
+            data.put("averagePercentAging",       dashboard.getAveragePercentAging());
+            data.put("highAgingStations",         dashboard.getHighAgingStations());
+            data.put("mediumAgingStations",       dashboard.getMediumAgingStations());
+            data.put("lowAgingStations",          dashboard.getLowAgingStations());
+            data.put("totalStations",             dashboard.getTotalStations());
+            data.put("totalPOCleared",            dashboard.getTotalPOCleared());
+            data.put("totalPOPartiallyPaid",      dashboard.getTotalPOPartiallyPaid());
+            data.put("totalClearedAmount",        dashboard.getTotalClearedAmount());
+            data.put("percentile33",              dashboard.getPercentile33());
+            data.put("percentile66",              dashboard.getPercentile66());
+            data.put("stationData",               dashboard.getStationData());
+            data.put("subzoneSummary",            dashboard.getSubzoneSummary());
+
+            Map<String, Object> analysis = geminiService.analyzePOAgingDashboard(data);
+            log.info("=== Gemini analysis complete ===");
+            return analysis;
+
+        } catch (Exception e) {
+            // Non-fatal — dashboard still works without AI analysis
+            log.warn("Gemini analysis failed (non-fatal, dashboard still returned): {}",
+                e.getMessage());
+            return Map.of(
+                "error",           "AI analysis unavailable",
+                "executiveSummary","Analysis could not be generated. Please try again later.",
+                "overallStatus",   "Unknown"
+            );
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  STEP 3: Get Dashboard by Upload ID (cache-first, no Gemini)
+    // ══════════════════════════════════════════════════════════════
+    public POAgingDashboardDTO getDashboardByUploadId(UUID uploadId) {
+        Optional<POAgingDashboardDTO> cached =
+            cacheService.loadCacheByUploadId(uploadId);
+        if (cached.isPresent()) {
+            log.info("Cache HIT for uploadId: {} — Gemini NOT called", uploadId);
+            return cached.get();
+        }
+
+        log.info("Cache MISS for uploadId: {} — querying DB (no Gemini call)", uploadId);
+        List<poagingreport> reports = reportRepository.findByUpload_UploadId(uploadId);
+        if (reports.isEmpty())
+            throw new RuntimeException("No reports found for upload: " + uploadId);
+
+        // DB fallback — no Gemini call, aiAnalysis will be null/empty
+        // Staff can re-upload to trigger fresh analysis
         return buildDashboardDTO(reports);
     }
+
+    // ══════════════════════════════════════════════════════════════
+    //  STEP 4: Get Latest Dashboard (no Gemini)
+    // ══════════════════════════════════════════════════════════════
+    public POAgingDashboardDTO getLatestDashboard() {
+        String username = getCurrentUsername();
+
+        Optional<POAgingDashboardDTO> cached =
+            cacheService.loadLatestCache(username);
+        if (cached.isPresent()) {
+            log.info("Loaded cached dashboard for staff: {} — Gemini NOT called", username);
+            return cached.get();
+        }
+
+        log.info("No cache for staff: {} — querying DB (no Gemini call)", username);
+        List<poagingreport> reports = reportRepository.findLatestReports();
+        if (reports.isEmpty())
+            throw new RuntimeException("No PO Aging reports found. Please upload data first.");
+        return buildDashboardDTO(reports);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  All remaining methods unchanged
+    // ══════════════════════════════════════════════════════════════
 
     private String buildRemarks(int total, int fullyCleared,
                                 int partiallyPaid, double remaining) {
@@ -292,66 +383,42 @@ public class POAgingService {
         return String.join(" · ", parts);
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  STEP 3 & 4: Get Dashboard
-    // ══════════════════════════════════════════════════════════════
-    public POAgingDashboardDTO getDashboardByUploadId(UUID uploadId) {
-        List<poagingreport> reports = reportRepository.findByUpload_UploadId(uploadId);
-        if (reports.isEmpty())
-            throw new RuntimeException("No reports found for upload: " + uploadId);
-        return buildDashboardDTO(reports);
-    }
-
-    public POAgingDashboardDTO getLatestDashboard() {
-        List<poagingreport> reports = reportRepository.findLatestReports();
-        if (reports.isEmpty())
-            throw new RuntimeException("No PO Aging reports found. Please upload data first.");
-        return buildDashboardDTO(reports);
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    //  Marks: 33rd/66th Percentile
-    // ══════════════════════════════════════════════════════════════
     private List<poagingreport> calculateMarks(List<poagingreport> reports, boolean useUpdated) {
-    // ← Only include stations WITH POs > 180 in percentile calculation
-    List<Double> pcts = reports.stream()
-            .filter(r -> {
-                int count = useUpdated
-                    ? (r.getUpdatedCountPOOver180() != null ? r.getUpdatedCountPOOver180() : 0)
-                    : (r.getCountPOOver180()        != null ? r.getCountPOOver180()        : 0);
-                return count > 0;  // ← exclude zero-PO stations
-            })
-            .map(r -> useUpdated ? r.getUpdatedPercentAging() : r.getPercentAging())
-            .filter(Objects::nonNull)
-            .sorted()
-            .collect(Collectors.toList());
+        List<Double> pcts = reports.stream()
+                .filter(r -> {
+                    int count = useUpdated
+                        ? (r.getUpdatedCountPOOver180() != null ? r.getUpdatedCountPOOver180() : 0)
+                        : (r.getCountPOOver180()        != null ? r.getCountPOOver180()        : 0);
+                    return count > 0;
+                })
+                .map(r -> useUpdated ? r.getUpdatedPercentAging() : r.getPercentAging())
+                .filter(Objects::nonNull)
+                .sorted()
+                .collect(Collectors.toList());
 
-    if (pcts.isEmpty()) return reports;
+        if (pcts.isEmpty()) return reports;
 
-    double p33 = percentile(pcts, 33);
-    double p66 = percentile(pcts, 66);
+        double p33 = percentile(pcts, 33);
+        double p66 = percentile(pcts, 66);
+        log.info("Percentile calc — 33rd: {}, 66th: {}", p33, p66);
 
-    log.info("Percentile calc (excluding zero-PO stations) — 33rd: {}, 66th: {}",
-             p33, p66);
+        for (poagingreport r : reports) {
+            double pct = useUpdated
+                ? (r.getUpdatedPercentAging() != null ? r.getUpdatedPercentAging() : 0.0)
+                : (r.getPercentAging()        != null ? r.getPercentAging()        : 0.0);
+            int count = useUpdated
+                ? (r.getUpdatedCountPOOver180() != null ? r.getUpdatedCountPOOver180() : 0)
+                : (r.getCountPOOver180()        != null ? r.getCountPOOver180()        : 0);
 
-    // rest stays the same...
-    for (poagingreport r : reports) {
-        double pct = useUpdated
-            ? (r.getUpdatedPercentAging() != null ? r.getUpdatedPercentAging() : 0.0)
-            : (r.getPercentAging()        != null ? r.getPercentAging()        : 0.0);
-        int count = useUpdated
-            ? (r.getUpdatedCountPOOver180() != null ? r.getUpdatedCountPOOver180() : 0)
-            : (r.getCountPOOver180()        != null ? r.getCountPOOver180()        : 0);
+            int mark = count == 0 ? 3
+                     : pct <= p33 ? 3
+                     : pct <= p66 ? 2
+                     : 1;
 
-        int mark = count == 0 ? 3
-                 : pct <= p33 ? 3
-                 : pct <= p66 ? 2
-                 : 1;
-
-        if (useUpdated) r.setUpdatedMarks(mark);
-        else { r.setMarks(mark); r.setUpdatedMarks(mark); }
-    }
-    return reports;
+            if (useUpdated) r.setUpdatedMarks(mark);
+            else { r.setMarks(mark); r.setUpdatedMarks(mark); }
+        }
+        return reports;
     }
 
     private double percentile(List<Double> sorted, int pct) {
@@ -360,9 +427,6 @@ public class POAgingService {
         return sorted.get(Math.max(0, Math.min(idx, sorted.size() - 1)));
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  Build Dashboard DTO
-    // ══════════════════════════════════════════════════════════════
     private POAgingDashboardDTO buildDashboardDTO(List<poagingreport> reports) {
         POAgingDashboardDTO d = new POAgingDashboardDTO();
         d.setTotalPOOver180(reports.stream().mapToInt(r -> r.getCountPOOver180() != null ? r.getCountPOOver180() : 0).sum());
@@ -384,6 +448,8 @@ public class POAgingService {
         d.setMarkDistribution(Map.of("High Aging (1)", d.getHighAgingStations(), "Medium Aging (2)", d.getMediumAgingStations(), "Low Aging (3)", d.getLowAgingStations()));
         d.setStationData(reports.stream().map(this::toDTO).sorted(Comparator.comparingInt((POAgingReportDTO r) -> r.getUpdatedCountPOOver180() != null ? r.getUpdatedCountPOOver180() : 0).reversed()).collect(Collectors.toList()));
         d.setSubzoneSummary(buildSubzoneSummary(reports));
+        // Note: aiAnalysis NOT set here — only set in processRaw and processCleared
+        // This ensures Gemini is never called from getDashboard or getLatest
         return d;
     }
 
@@ -401,12 +467,8 @@ public class POAgingService {
                     dto.setUpdatedTotalPOOver180(sr.stream().mapToInt(r -> r.getUpdatedCountPOOver180() != null ? r.getUpdatedCountPOOver180() : 0).sum());
                     dto.setTotalOutstandingValue(sr.stream().mapToDouble(r -> r.getTotalOutstandingValue() != null ? r.getTotalOutstandingValue() : 0.0).sum());
                     dto.setUpdatedOutstandingValue(sr.stream().mapToDouble(r -> r.getUpdatedOutstandingValue() != null ? r.getUpdatedOutstandingValue() : 0.0).sum());
-                    double avgMark = sr.stream()
-                                     .mapToInt(r -> r.getUpdatedMarks() != null ? r.getUpdatedMarks():3)
-                                     .average()
-                                     .orElse(3.0);
-                    int avgMarkRounded = (int) Math.round(avgMark);
-                    avgMarkRounded = Math.max(1, Math.min(3, avgMarkRounded));
+                    double avgMark = sr.stream().mapToInt(r -> r.getUpdatedMarks() != null ? r.getUpdatedMarks() : 3).average().orElse(3.0);
+                    int avgMarkRounded = Math.max(1, Math.min(3, (int) Math.round(avgMark)));
                     dto.setMarks(avgMarkRounded);
                     dto.setHighAgingCount((int) sr.stream().filter(r -> Integer.valueOf(1).equals(r.getUpdatedMarks())).count());
                     dto.setMediumAgingCount((int) sr.stream().filter(r -> Integer.valueOf(2).equals(r.getUpdatedMarks())).count());
@@ -417,9 +479,15 @@ public class POAgingService {
                 .collect(Collectors.toList());
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  Save Raw PO Rows
-    // ══════════════════════════════════════════════════════════════
+    public void updateCachedAnalysis(UUID uploadId, Map<String, Object> analysis) {
+    cacheService.loadCacheByUploadId(uploadId).ifPresent(dto -> {
+    dto.setAiAnalysis(analysis);
+    fileUploadRepository.findById(uploadId).ifPresent(upload ->
+    cacheService.saveCache(uploadId, upload, getCurrentUsername(), dto, true)
+            );
+        });
+    }
+
     private void saveRawPORows(List<poagingreport> reports, List<Map<String,String>> poOver180) {
         Map<String, poagingreport> reportMap = reports.stream()
                 .collect(Collectors.toMap(p -> Objects.requireNonNull(p).getBusArea(), r -> r, (a,b) -> a));
@@ -460,7 +528,7 @@ public class POAgingService {
                 .currency(row.getOrDefault("Curr",""))
                 .exchangeRate(parseDouble(row.getOrDefault("Exchange rate","0")))
                 .outstandingPOValue(outstanding)
-                .remainingBalance(outstanding)   // initially = full outstanding
+                .remainingBalance(outstanding)
                 .trackingNo(row.getOrDefault("Tracking No.",""))
                 .heldPO(row.getOrDefault("Held PO",""))
                 .noOfDaysOutstanding(parseInt(row.getOrDefault("No. of days Outstanding","0")))
@@ -472,9 +540,6 @@ public class POAgingService {
         log.info("Saved {} raw PO rows", rawRows.size());
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  Read Excel (by header name — works for any column order)
-    // ══════════════════════════════════════════════════════════════
     private List<Map<String,String>> readExcelFile(MultipartFile file) throws Exception {
         List<Map<String,String>> rows = new ArrayList<>();
         try (Workbook wb = new XSSFWorkbook(file.getInputStream())) {
@@ -502,9 +567,6 @@ public class POAgingService {
         return rows;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  Convert model → DTO
-    // ══════════════════════════════════════════════════════════════
     private POAgingReportDTO toDTO(poagingreport r) {
         POAgingReportDTO dto = new POAgingReportDTO();
         dto.setReportId(r.getReportId());
@@ -528,9 +590,6 @@ public class POAgingService {
         return dto;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    //  Helpers
-    // ══════════════════════════════════════════════════════════════
     private String getCellValue(Cell cell) {
         if (cell == null) return "";
         return switch (cell.getCellType()) {

@@ -30,10 +30,15 @@ public class ocrresult {
     @Column(name = "ocr_id")
     private UUID ocrId;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "upload_id")
     @JsonIgnoreProperties({"user", "staff"})
     private fileupload upload;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "selected_template_id")
+    @JsonIgnoreProperties({"staffId", "placeholderData", "filePath", "createdAt"})
+    private lettertemplate selectedTemplate;
 
     @Column(name = "extracted_text",columnDefinition = "TEXT")
     private String extractedText;
@@ -43,6 +48,8 @@ public class ocrresult {
 
     @Column(name = "error_log",columnDefinition = "TEXT")
     private String errorLog;
+
+    
 
     @Column(name = "processed_at")
     private OffsetDateTime processedAt;
