@@ -6,7 +6,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.UUID;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -96,31 +95,7 @@ public class FileUploadService {
         return result;
     }
 
-    public fileupload saveExcelUpload(MultipartFile file) throws IOException{
 
-        String username = SecurityContextHolder.getContext()
-                          .getAuthentication().getName();
-        account acc = accountrepository.findByUsername(username)
-                      .orElseThrow(() -> new RuntimeException("Account not found"));
-        staff currentStaff = staffrepository.findByAccount_AccountId(acc.getAccountId()).orElseThrow(() -> new RuntimeException("Staff not found."));
-
-        String originName = file.getOriginalFilename();
-        String extension = originName!= null && originName.contains(".") ? originName.substring(originName.lastIndexOf(".")):"";
-
-        String filename = UUID.randomUUID() + extension;
-        Path savepath = Paths.get(uploadDir + filename);
-        Files.createDirectories(savepath.getParent());
-        Files.write(savepath,file.getBytes());
-
-        fileupload upload = new fileupload();
-        upload.setStaff(currentStaff);
-        upload.setFileName(originName);
-        upload.setFileType(file.getContentType());
-        upload.setFilePath(uploadDir+filename);
-        upload.setUploadedAt(OffsetDateTime.now());
-
-        return fileUploadRepository.save(upload);
-    }
 
     // ADD this new method for PO Aging uploads
     public fileupload savePOAgingUpload(String originalName,String contentType,byte[] fileByte) throws IOException {
@@ -159,15 +134,6 @@ public class FileUploadService {
 
 
 
-    public List<fileupload> getUserUploads() {
-        String username = SecurityContextHolder.getContext()
-                          .getAuthentication().getName();
-        account acc = accountrepository.findByUsername(username)
-                          .orElseThrow(() -> new RuntimeException("Account not found"));                 
-        user user = userrepository.findByAccount_AccountId(acc.getAccountId())
-                          .orElseThrow(() -> new RuntimeException("User not found"));
-                          return fileUploadRepository.findByUser(user);
-     }
 
     public String saveFormImage(MultipartFile file) throws IOException{
 
