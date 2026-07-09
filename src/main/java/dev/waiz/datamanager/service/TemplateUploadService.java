@@ -124,11 +124,12 @@ public class TemplateUploadService {
     }
 
     public List<LetterTemplateDTO> getAllTemplates() {
-        return letterTemplateRepository.findAll()
+        return letterTemplateRepository.findByIsDeletedFalse()
         .stream()
         .map(t -> new LetterTemplateDTO(
             t.getLetterTemplateId(),
-            t.getTemplateName()
+            t.getTemplateName(),
+            t.getCreatedAt()
         ))
         .toList();
     }
@@ -139,7 +140,7 @@ public class TemplateUploadService {
 }
 
     private void updateDocxWithPlaceholders(String filePath,
-                                            List<Map<String,String>> placeholderMappings) throws Exception{
+    List<Map<String,String>> placeholderMappings) throws Exception{
             try (FileInputStream fis = new FileInputStream(filePath);
             XWPFDocument doc = new XWPFDocument(fis)) {
 
@@ -222,6 +223,58 @@ public class TemplateUploadService {
     }
     return new ArrayList<>(placeholders);
     }
+
+    public lettertemplate updateTemplate(UUID templateId, String newTemplateName, MultipartFile newFile) throws Exception {
+    lettertemplate template = letterTemplateRepository.findById(templateId)
+        .orElseThrow(() -> new RuntimeException("Template not found: " + templateId));
+
+    if (newTemplateName != null && !newTemplateName.isBlank()) {
+        template.setTemplateName(newTemplateName);
+    }
+
+    if (newFile != null && !newFile.isEmpty()) {
+        String oldFilePath = template.getFilePath();
+
+        String uploadDir = System.getProperty("user.home") + "/datamanager/uploads/templatesletter/";
+        Files.createDirectories(Paths.get(uploadDir));
+
+        String fileName = UUID.randomUUID() + "_" + newFile.getOriginalFilename();
+        String newFilePath = uploadDir + fileName;
+
+        Files.copy(
+            newFile.getInputStream(),
+            Paths.get(newFilePath),
+            StandardCopyOption.REPLACE_EXISTING
+        );
+        log.info("Replacement file saved to: {}", newFilePath);
+
+        template.setFilePath(newFilePath);
+
+        // Re-extract placeholders from the new file — old ones no longer apply
+        List<String> placeholders = extractPlaceholders(newFilePath);
+        template.setPlaceholderData(objectMapper.writeValueAsString(placeholders));
+        log.info("Re-extracted {} placeholders from replacement file: {}", placeholders.size(), placeholders);
+
+        // Best-effort cleanup of the old file
+        try {
+            Files.deleteIfExists(Paths.get(oldFilePath));
+            log.info("Deleted old template file: {}", oldFilePath);
+        } catch (Exception e) {
+            log.warn("Failed to delete old template file {}: {}", oldFilePath, e.getMessage());
+        }
+    }
+
+    return letterTemplateRepository.save(template);
+}
+
+public void deleteTemplate(UUID templateId) throws Exception {
+    lettertemplate template = letterTemplateRepository.findById(templateId)
+        .orElseThrow(() -> new RuntimeException("Template not found: " + templateId));
+
+    template.setDeleted(true);
+    letterTemplateRepository.save(template);
+    log.info("Soft-deleted template: {}", templateId);
+}
 
     private void findPlaceholders(String text, Set<String> placeholders) {
         if (text == null || text.isEmpty()) {

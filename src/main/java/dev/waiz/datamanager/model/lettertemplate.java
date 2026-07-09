@@ -45,4 +45,7 @@ public class lettertemplate {
 
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
+
+    @Column(name = "is_deleted")
+    private boolean isDeleted = false;
 }

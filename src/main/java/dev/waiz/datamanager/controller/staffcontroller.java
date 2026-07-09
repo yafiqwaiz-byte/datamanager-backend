@@ -2,11 +2,16 @@ package dev.waiz.datamanager.controller;
 
 import dev.waiz.datamanager.model.staff;
 import dev.waiz.datamanager.service.staffservice;
+import dev.waiz.datamanager.service.ActivityLogService;
+import dev.waiz.datamanager.repository.GeneratedLetterRepository;
+import dev.waiz.datamanager.repository.OcrResultRepository;
+import dev.waiz.datamanager.repository.accountrepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,6 +22,10 @@ public class staffcontroller {
 
     
     private final staffservice staffService;
+    private final ActivityLogService activityLogService;
+    private final OcrResultRepository ocrResultRepository;
+    private final GeneratedLetterRepository generatedLetterRepository;
+    private final accountrepository accountRepository;
 
     // CREATE - Create a new staff member
     @PostMapping
@@ -153,6 +162,31 @@ public class staffcontroller {
         return ResponseEntity.ok(new DepartmentStaffCountResponse(department, count));
     }
 
+    // ══════════════════════════════════════════════════════════════
+    //  Staff Dashboard — stats + recent activity feed
+    // ══════════════════════════════════════════════════════════════
+
+    // GET - Dashboard stats (user records, pending reviews, letters generated)
+    @GetMapping("/dashboard/stats")
+    public ResponseEntity<?> getDashboardStats() {
+        long pendingReviews   = ocrResultRepository.countByStatus("pending_review");
+        long lettersGenerated = generatedLetterRepository.count();
+        long userRecords      = accountRepository.findByRole("USER").size();
+
+        return ResponseEntity.ok(Map.of(
+            "userRecords",      userRecords,
+            "pendingReviews",   pendingReviews,
+            "lettersGenerated", lettersGenerated
+        ));
+    }
+
+    // GET - Recent activity feed for staff dashboard
+    @GetMapping("/dashboard/activity")
+    public ResponseEntity<?> getDashboardActivity(
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseEntity.ok(activityLogService.getRecent(limit));
+    }
+
     // Helper class for staff count response
     public static class StaffCountResponse {
         public long totalStaff;
@@ -173,6 +207,3 @@ public class staffcontroller {
         }
     }
 }
-
-
-

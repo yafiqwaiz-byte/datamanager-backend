@@ -1,5 +1,6 @@
 package dev.waiz.datamanager.dto;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import lombok.AllArgsConstructor;
@@ -12,4 +13,5 @@ import lombok.NoArgsConstructor;
 public class LetterTemplateDTO {
     private UUID letterTemplateId;
     private String templateName;
+    private OffsetDateTime createdAt;
 }
