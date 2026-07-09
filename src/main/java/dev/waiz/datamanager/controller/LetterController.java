@@ -3,7 +3,9 @@ package dev.waiz.datamanager.controller;
 import org.springframework.core.io.*;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,6 +27,7 @@ import dev.waiz.datamanager.model.fieldmapping;
 import dev.waiz.datamanager.model.generatedletter;
 import dev.waiz.datamanager.model.lettertemplate;
 import dev.waiz.datamanager.model.ocrresult;
+import dev.waiz.datamanager.service.ActivityLogService;
 import dev.waiz.datamanager.service.FieldMappingService;
 import dev.waiz.datamanager.service.LetterGeneratorService;
 import dev.waiz.datamanager.service.TemplateUploadService;
@@ -45,6 +48,7 @@ public class LetterController {
     private final LetterGeneratorService letterGeneratorService;
     private final OcrResultRepository ocrResultRepository;
     private final LetterTemplateRepository letterTemplateRepository;
+    private final ActivityLogService activityLogService;
 
     // ══════════════════════════════════════════════════════════════
     //  SHARED — Templates (USER + STAFF)
@@ -81,6 +85,9 @@ public class LetterController {
             ocr.setSelectedTemplate(template);
             ocrResultRepository.save(ocr);
 
+            activityLogService.log("Letter",
+            "Letter request submitted (" + template.getTemplateName() + ")",
+            "Letter Template", "pending");
             log.info("User submitted OCR {} with template {} for staff review",
                 ocrId, templateId);
 
@@ -205,14 +212,66 @@ public class LetterController {
         try {
             lettertemplate template =
                 templateUploadService.uploadTemplate(templateName, file);
+            
+                activityLogService.log("Form",
+            "New template \"" + template.getTemplateName() + "\" uploaded",
+            "Form Templates", "active");
             return ResponseEntity.ok(Map.of(
                 "letterTemplateId", template.getLetterTemplateId(),
                 "templateName",     template.getTemplateName(),
                 "filePath",         template.getFilePath()
-            ));
+            )
+        );
+            
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Template upload failed: " + e.getMessage());
         }
+    }
+
+        /**
+     * STAFF: Update a template — rename and/or replace the .docx file.
+     * If a new file is provided, placeholders are re-extracted and must be re-marked.
+     */
+    @PutMapping("/templates/{templateId}")
+    public ResponseEntity<?> updateTemplate(
+            @PathVariable UUID templateId,
+            @RequestParam(required = false) String templateName,
+            @RequestParam(required = false) MultipartFile file) {
+        try {
+            lettertemplate updated = templateUploadService.updateTemplate(templateId, templateName, file);
+
+            activityLogService.log("Form",
+                "Template \"" + updated.getTemplateName() + "\" updated",
+                "Form Templates", "active");
+
+            return ResponseEntity.ok(Map.of(
+                "letterTemplateId", updated.getLetterTemplateId(),
+                "templateName",     updated.getTemplateName(),
+                "filePath",         updated.getFilePath()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Template update failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * STAFF: Delete a template. Fails with a clear message if the template
+     * is still referenced by an existing OCR/letter request.
+     */
+    @DeleteMapping("/templates/{templateId}")
+    public ResponseEntity<?> deleteTemplate(@PathVariable UUID templateId) {
+        try {
+        String name = templateUploadService.getTemplateById(templateId).getTemplateName();
+        templateUploadService.deleteTemplate(templateId);
+
+        activityLogService.log("Form",
+            "Template \"" + name + "\" deleted",
+            "Form Templates", "active");
+
+        return ResponseEntity.noContent().build();
+    } catch (Exception e) {
+        return ResponseEntity.badRequest().body("Template deletion failed: " + e.getMessage());
+    }
     }
 
     @GetMapping("/templates/preview/{templateId}")
@@ -256,9 +315,10 @@ public class LetterController {
     /**
      * STAFF: Get all OCR submissions with status "pending_review"
      */
+    @Transactional(readOnly = true)
     @GetMapping("/queue/pending")
     public ResponseEntity<?> getPendingQueue() {
-        try {
+        try{
             // ✅ Use fetch-joined query to avoid N+1 on ocr.upload
             List<ocrresult> pending = ocrResultRepository.findByStatusWithUpload("pending_review");
 
@@ -282,18 +342,20 @@ public class LetterController {
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Failed to fetch queue: " + e.getMessage());
+            log.error("Failed to fetch pending queue", e);
+            return ResponseEntity.badRequest().body("Failed to fetch pending queue: " + e.getMessage());
         }
     }
 
     /**
      * STAFF: Get all OCR submissions regardless of status
      */
+    @Transactional(readOnly = true)
     @GetMapping("/queue/all")
     public ResponseEntity<?> getAllQueue() {
-        try {
+        try{
             // ✅ Use fetch-joined query to avoid N+1 on ocr.upload
-            List<ocrresult> all = ocrResultRepository.findAllByStatusNotNullWithUpload();
+            List<ocrresult> all = ocrResultRepository.findAllLetterRequestsWithUpload();
 
             List<Map<String, Object>> response = all.stream()
                 .map(ocr -> {
@@ -314,8 +376,10 @@ public class LetterController {
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Failed to fetch queue: " + e.getMessage());
+            log.error("Failed to fetch all queue", e);
+            return ResponseEntity.badRequest().body("Failed to fetch all queue: " + e.getMessage());
         }
+
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -411,6 +475,9 @@ public class LetterController {
             ocrresult ocr = map.getOcr();
             ocr.setStatus("confirmed");
             ocrResultRepository.save(ocr);
+            activityLogService.log("Letter",
+            "Field mapping confirmed for OCR " + ocr.getOcrId(),
+            "Letter Template", "active");
 
             return ResponseEntity.ok(Map.of(
                 "mappingId", map.getMappingId(),
@@ -437,6 +504,9 @@ public class LetterController {
             ocrresult ocr = letter.getMapping().getOcr();
             ocr.setStatus("ready");
             ocrResultRepository.save(ocr);
+            activityLogService.log("Letter",
+            "Letter generated (ID " + letter.getLetterId() + ")",
+            "Letter Template", "active");
 
             log.info("Letter generated — mappingId: {}, letterId: {}",
                 mappingId, letter.getLetterId());

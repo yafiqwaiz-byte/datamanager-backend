@@ -2,6 +2,8 @@
 
 A comprehensive Spring Boot REST API application for managing user accounts, staff data, form submissions, file uploads, OCR processing, and data visualization through dashboards. Built with PostgreSQL/Supabase database and OCR service integration.
 
+Version: 1.5.0 (in development) — 2026-07-06
+
 ## Features
 
 - **User & Account Management** - User registration, login, and account authentication
@@ -68,110 +70,74 @@ DB_URL=jdbc:postgresql://[user]:[password]@[host]:[port]/[database]
 
 ## Project Architecture
 
-### System Components
-- **Web App (Frontend)** - User and Staff interfaces
-- **Backend API** - Spring Boot REST API server
-- **Database** - PostgreSQL (Supabase)
-- **OCR Service** - Text extraction from images
-- **Data Processing Engine** - Data cleaning and validation
-- **Dashboard Engine** - Real-time data visualization
+### Architecture Overview
 
-### Entity Relationship Diagram
+The system follows a three-layer architecture: Presentation, Application, and Data layers. Recent updates introduced a Staff/Admin portal, a PO Aging service and dashboard, a DOCX-based letter generator, tighter token handling with HttpOnly refresh cookies, and expanded OCR and AI-assisted analysis services.
 
-The system manages the following entities:
+### Presentation Layer
 
-```
-User (with profile, company info, contact details)
-├── Account (login credentials, role, status)
-├── Form_Submission (user submissions)
-│   ├── Form_Template (form structure and fields)
-│   └── Form_Field (individual form fields)
-└── Upload (file management)
-    └── Processed_data (cleaned and validated data)
+- Auth UI (Sign-in / Google OAuth)
+- User portal: forms, OCR uploads, generated letters
+- Staff portal: PO Aging dashboard, form submission UI
+- Admin portal: approvals, invites, RBAC administration
+- UI components: TNB Northern Map, form renderer, OCR upload, letter generator, PO Aging dashboard, `StaffLayout` + topbar
+- Authentication: auth service using HttpOnly refresh cookie for token refresh
 
-Staff (manages system)
-├── Account (staff credentials)
-├── Upload (handles file uploads)
-└── Dashboard (views and manages data visualizations)
+### Application Layer (Services)
 
-Export_log (tracks data exports)
-```
+- Auth Service: JWT + Google OAuth support, refresh token flows via HttpOnly cookie
+- Form Service: templates, submissions, field mapping (OCR → placeholder mapping)
+- OCR Service: Tesseract-based extraction and preprocessing
+- Letter Service: DOCX templating and PDF export (DOCX4J)
+- File Upload Service: images, Excel, DOCX and PDF handling
+- PO Aging Service: percentile and mark calculations; dashboard integration
+- RBAC: roles for Admin / Staff / User enforced at service layer
+- Login Attempt Service: rate limiting and lockout handling
+- Email Service: invite codes and SMTP integration
+- Token Store: refresh token persistence (secure store)
+- AI Assistant: Gemini-like service for OCR mapping, dashboard analysis and suggestions
+- Geocode Service: GPS → address resolution
+- PDF converter: DOCX4J-backed conversions and exports
+- Security: CORS, JWT filter, SecurityFilterChain, COOP/security headers
+- Persistence tuning: batch inserts (batch size 50), Hibernate optimizations
+
+### Data Layer
+
+- Relational database: users, accounts, roles, forms, submissions (PostgreSQL / Supabase)
+- File storage: images, Excel, DOCX, PDFs (local or cloud-backed blob storage)
+- Document store: OCR results, generated letters, processed documents (for fast search/lookup)
+- Token store: secure refresh token storage for HttpOnly cookie flow
+- ORM: Hibernate/JPA with batch insert and `ddl-auto=update` configuration
+
+### Notable Changes (latest)
+
+- Implemented HttpOnly refresh token flow and token refresh endpoint
+- Added Staff and Admin portals with RBAC controls
+- PO Aging service and dashboard are now part of the application layer
+- Letter generation service using DOCX templating and PDF export (DOCX4J)
+- OCR pipeline using Tesseract with document-store persistence for OCR outputs
+- Introduced AI-assisted analysis (Gemini-like) for mapping and dashboard insights
+- Hardened security: COOP headers, SecurityFilterChain, CORS and JWT filters
+- Persistence and performance: Hibernate batch inserts, ddl-auto updates, batch size tuning
 
 ## Project Structure
 
 ```
 src/main/java/dev/waiz/datamanager/
-├── controller/
-│   ├── accountcontroller.java      # Account REST endpoints
-│   ├── staffcontroller.java        # Staff REST endpoints
-│   ├── usercontroller.java         # User REST endpoints
-│   ├── uploadcontroller.java       # File upload endpoints (future)
-│   ├── formsubmissioncontroller.java # Form submission endpoints (future)
-│   └── dashboardcontroller.java    # Dashboard endpoints (future)
-├── model/
-│   ├── account.java                # Account entity
-│   ├── staff.java                  # Staff entity
-│   ├── user.java                   # User entity
-│   ├── upload.java                 # Upload entity (future)
-│   ├── form_submission.java        # Form submission entity (future)
-│   ├── form_template.java          # Form template entity (future)
-│   ├── form_field.java             # Form field entity (future)
-│   ├── processed_data.java         # Processed data entity (future)
-│   ├── dashboard.java              # Dashboard entity (future)
-│   └── export_log.java             # Export log entity (future)
-├── service/
-│   ├── accountservice.java         # Account business logic
-│   ├── uploadservice.java          # File upload service (future)
-│   ├── ocrservice.java             # OCR processing service (future)
-│   ├── dataprocessingservice.java  # Data processing logic (future)
-│   └── dashboardservice.java       # Dashboard service (future)
-├── repository/
-│   ├── accountrepository.java      # Account database access
-│   ├── uploadrepository.java       # Upload repository (future)
-│   ├── formsubmissionrepository.java # Form submission repository (future)
-│   └── processed_datarepository.java # Processed data repository (future)
-└── DatamanagerApplication.java     # Main application class
+├── controller/          # REST endpoints (accounts, auth, staff, dashboard, forms, uploads)
+├── model/               # JPA entities (Account, User, Staff, Upload, ProcessedData, FormTemplate, etc.)
+├── service/             # Business logic (AuthService, OcrService, LetterService, PoAgingService, etc.)
+├── repository/          # Spring Data JPA repositories
+└── DatamanagerApplication.java
 ```
 
-## System Workflows
+## System Workflows (summary)
 
-### 1. Login/Registration Flow
-- User/Staff registers with credentials
-- Backend validates and stores account in database
-- JWT token generated for authentication
-- User gains access to home page
-
-### 2. User Flow
-- User inputs form data and uploads images
-- Form data stored in Form_Submission table
-- Images sent to OCR service for text extraction
-- Extracted data stored in database
-- Data processed and cleaned
-- Cleaned data displayed in user dashboard
-- User can export processed data
-
-### 3. Staff Flow
-- Staff requests user data from backend
-- Backend fetches data records from database
-- Staff can filter/sort data
-- Staff can export data table to file
-- Export tracked in Export_log
-
-### 4. File Upload Flow
-- User uploads image/document
-- File sent to OCR service
-- OCR extracts text and returns data
-- Data validation and formatting
-- Valid data stored in Processed_data table
-- Invalid data tracked with error logs
-- Dashboard generated with processed data
-
-### 5. Data Processing
-- Clean and format extracted data
-- Validate data against requirements
-- Handle errors and log issues
-- Store in Processed_data table
-- Generate dashboard configuration
+- Login/Registration: JWT-based authentication, Google OAuth option, refresh tokens via HttpOnly cookie
+- Upload & OCR: user uploads files → OCR service (Tesseract) → OCR results persisted to document store → data mapped and validated → processed data saved
+- Letter Generation: templates (DOCX) populated with data → exported to DOCX/PDF via DOCX4J
+- PO Aging: background calculation service produces metrics consumed by Staff PO Aging dashboard
+- AI Assistance: optional analysis step that suggests field mappings or dashboard annotations
 
 ## API Endpoints
 
@@ -389,24 +355,57 @@ CREATE TABLE Dashboard (
 
 ## Implementation Status
 
-✅ **Completed:**
-- Account Management (CRUD operations)
-- Account Service Layer
-- Account Repository
-- User Model
-- Staff Model
-- Database configuration with PostgreSQL
+✅ **Completed / Available:**
+- Account Management (CRUD), JWT authentication, account service & repository
+- Basic User and Staff models and database configuration (PostgreSQL)
 
-⏳ **In Progress:**
+🔧 **Recently Added / Updated:**
+- HttpOnly refresh token flow and token-store support
+- OCR pipeline (Tesseract) with document-store persistence
+- Letter generation service (DOCX templates + DOCX4J export)
+- PO Aging service and Staff PO Aging dashboard
+- Security enhancements: SecurityFilterChain, COOP headers, CORS, JWT filter
+
+⏳ **In Progress / Planned:**
+- Frontend pages for some workflows (form renderer, advanced dashboards)
+- Integration tests and end-to-end validation for new services
+- Scaling and deployment automation (containerization / cloud storage)
+
+## Implemented Backend Components (selected)
+
+The following controllers, services, and repositories are implemented in the backend and reflected in the current codebase (see `src/main/java/dev/waiz/datamanager`):
+
+- Controllers:
+  - `AuthController`, `accountcontroller`, `usercontroller`, `staffcontroller`, `AdminController`
+  - `FormTemplateController`, `FormSubmissionController`, `FileUploadController`, `LetterController`
+  - `POAgingController`, `ProcessedRowsController`, `DataPreprocessingController`, `GeocodingController`, `GeminiController`, `UserFormController`
+
+- Services:
+  - `accountservice`, `userservice`, `staffservice`, `GoogleAuthService`, `RefreshTokenService`, `LoginAttemptService`
+  - `OcrService`, `FileUploadService`, `FormSubmissionService`, `FormTemplateService`, `FieldMappingService`, `DataPreprocessingService`
+  - `POAgingService`, `POAgingCacheService`, `ProcessedRowService`, `LetterGeneratorService`, `GeminiService`, `GeocodingService`
+  - `EmailService`, `TemplateUploadService`, `StaffInviteService`, `BusinessValidationService`, `RegexValidationService`
+
+- Repositories:
+  - `accountrepository`, `userrepository`, `staffrepository`, `StaffInviteRepository`, `RefreshTokenRepository`
+  - `FormSubmissionRepository`, `formtemplaterepository`, `FormFieldRepository`, `FormAnswerRepository`, `FieldMappingRepository`
+  - `FileUploadRepository`, `OcrResultRepository`, `ProcessedRowsRepository`, `ExcelDataRepository`
+  - `POAgingReportRepository`, `POAgingRawRepository`, `POAgingCacheRepository`, `LetterTemplateRepository`, `GeneratedLetterRepository`
+
+These components are used by the updated architecture: the README's Application Layer and System Workflows sections reference these implementations.
+
+## Upcoming
+
+- Complete frontend pages and integrate with the new endpoints (forms, PO Aging dashboard, letter generation).
+- Add integration and E2E tests for `OcrService`, `POAgingService`, `LetterGeneratorService`, and refresh-token flows.
+- Add containerization scripts and storage migration for blob/file storage.
+- Improve monitoring and metrics for batch processing and OCR throughput.
+
+If you'd like, I can run the test suite and create a git commit for the README changes next.
 - Staff Controller & Service
 - User Controller & Service
 
 📋 **Upcoming:**
-- Upload Management & File Processing
-- Form Management System
-- Data Processing Engine
-- OCR Service Integration
-- Dashboard System
 - Export Functionality
 - Error Handling & Validation
 - Unit Tests
