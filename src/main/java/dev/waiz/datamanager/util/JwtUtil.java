@@ -8,13 +8,13 @@ import dev.waiz.datamanager.config.JwtProperties;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.time.Instant;
 import java.util.Date;
 
 @Component
 @RequiredArgsConstructor
 public class JwtUtil {
 
-    
     private final JwtProperties jwtProperties;
 
     private SecretKey getSigningKey() {
@@ -54,6 +54,13 @@ public class JwtUtil {
     public String extractRole(String token) {
         Claims claims = getClaimsFromToken(token);
         return claims != null ? (String) claims.get("role") : null;
+    }
+
+    public Instant extractIssuedAt(String token) {
+        Claims claims = getClaimsFromToken(token);
+        return claims != null && claims.getIssuedAt() != null
+            ? claims.getIssuedAt().toInstant()
+            : null;
     }
 
     public boolean validateToken(String token) {

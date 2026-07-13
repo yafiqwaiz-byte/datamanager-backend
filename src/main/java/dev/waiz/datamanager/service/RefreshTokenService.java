@@ -1,8 +1,9 @@
 package dev.waiz.datamanager.service;
- 
+
 import dev.waiz.datamanager.model.refreshtoken;
 import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.repository.RefreshTokenRepository;
+import dev.waiz.datamanager.repository.accountrepository;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,8 +21,9 @@ public class RefreshTokenService {
 
     private static final long REFRESH_TOKEN_EXPIRY_MS = 7L*24*60*60*1000;
 
-    
+
     private final RefreshTokenRepository refreshTokenRepository;
+    private final accountrepository accountRepository;
 
 
      /**
@@ -45,6 +47,12 @@ public class RefreshTokenService {
      *   1. Marks the old token as revoked
      *   2. Issues a brand-new refresh token
      * Returns the new RefreshToken, or empty if invalid/expired/revoked.
+     *
+     * If the token being presented was ALREADY revoked (i.e. it was already
+     * rotated once before), that's a strong signal of token theft/replay —
+     * a legitimate client only ever holds the latest token. In that case we
+     * revoke every token for the account AND invalidate any still-live
+     * access tokens via revokeAllTokensForAccount().
      */
 
     @Transactional
@@ -57,7 +65,7 @@ public class RefreshTokenService {
 
         if (existing.isRevoked() || existing.isExpired()){
             if (existing.isRevoked()) {
-                refreshTokenRepository.revokeAllByAccount(existing.getAccount());
+                revokeAllTokensForAccount(existing.getAccount());
             }
             return Optional.empty();
         }
@@ -69,10 +77,18 @@ public class RefreshTokenService {
         return Optional.of(newToken);
     }
 
-    /** Revoke all tokens for an account (logout / password change) */
+    /**
+     * Revoke all refresh tokens for an account (logout / password change /
+     * reuse-detected theft), and stamp tokensValidAfter so any access token
+     * issued before this instant is rejected by JwtAuthFilter on its next use —
+     * closing the gap where a still-live JWT would otherwise remain valid
+     * until its natural expiry even after the session is revoked.
+     */
     @Transactional
     public void revokeAllTokensForAccount(account account){
         refreshTokenRepository.revokeAllByAccount(account);
+        account.setTokensValidAfter(Instant.now());
+        accountRepository.save(account);
     }
 
      /** Find and return account from a valid (non-expired, non-revoked) token string */
@@ -97,4 +113,3 @@ public class RefreshTokenService {
     }
 
 }
-

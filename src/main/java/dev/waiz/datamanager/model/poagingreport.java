@@ -97,6 +97,12 @@ public class poagingreport {
     @Column(name = "remarks",columnDefinition = "TEXT")
     private String remarks;
 
+    @Column(name = "previous_percent_aging")
+    private Double previousPercentAging;
+
+    @Column(name = "size_bracket")
+    private String sizeBracket;   // "Large" / "Medium" / "Small"
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 

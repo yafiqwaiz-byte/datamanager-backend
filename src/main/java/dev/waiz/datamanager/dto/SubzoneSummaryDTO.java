@@ -1,5 +1,8 @@
 package dev.waiz.datamanager.dto;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import lombok.Data;
 
 @Data
@@ -15,4 +18,6 @@ public class SubzoneSummaryDTO {
     private Integer highAgingCount;
     private Integer mediumAgingCount;
     private Integer lowAgingCount;
+
+    private List<DuplicatePODTO> duplicatePOs = new ArrayList<>(); // ← ADD list of duplicate POs
 }

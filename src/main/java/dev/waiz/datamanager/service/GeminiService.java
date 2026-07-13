@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -27,7 +28,17 @@ public class GeminiService {
     private String apiUrl;
 
     private final ObjectMapper objectMapper;
-    private final OkHttpClient httpClient = new OkHttpClient();
+
+    // ── OkHttpClient as singleton bean with timeouts ───────────────
+    private final OkHttpClient httpClient = new OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)   // max time to establish connection
+        .readTimeout(60,    TimeUnit.SECONDS)   // max time to wait for response body
+        .writeTimeout(30,   TimeUnit.SECONDS)   // max time to send request body
+        .build();
+
+    // ── Retry config ───────────────────────────────────────────────
+    private static final int    MAX_RETRIES    = 3;
+    private static final long   INITIAL_DELAY  = 2000L; // 2 seconds
 
     // ══════════════════════════════════════════════════════════════
     //  PO Aging Dashboard Analysis
@@ -36,8 +47,8 @@ public class GeminiService {
     public Map<String, Object> analyzePOAgingDashboard(
             Map<String, Object> dashboardData) throws Exception {
 
-        String prompt = buildPOAgingPrompt(dashboardData);
-        String response = callGemini(prompt);
+        String prompt   = buildPOAgingPrompt(dashboardData);
+        String response = callGeminiWithRetry(prompt);
         return parseGeminiResponse(response);
     }
 
@@ -147,10 +158,8 @@ public class GeminiService {
         }
 
         sb.append("─────────────────────────────────────────\n\n");
-
         sb.append("Based on the above PO Aging data, provide a comprehensive ");
         sb.append("management analysis in the following JSON format.\n\n");
-
         sb.append("Respond ONLY with valid JSON, no markdown, no explanation:\n");
         sb.append("{\n");
         sb.append("  \"executiveSummary\": \"2-3 sentence summary for senior management\",\n");
@@ -169,15 +178,8 @@ public class GeminiService {
         sb.append("      \"recommendation\": \"specific action for this subzone\"\n");
         sb.append("    }\n");
         sb.append("  ],\n");
-        sb.append("  \"keyRisks\": [\n");
-        sb.append("    \"risk 1\",\n");
-        sb.append("    \"risk 2\",\n");
-        sb.append("    \"risk 3\"\n");
-        sb.append("  ],\n");
-        sb.append("  \"positiveObservations\": [\n");
-        sb.append("    \"positive finding 1\",\n");
-        sb.append("    \"positive finding 2\"\n");
-        sb.append("  ],\n");
+        sb.append("  \"keyRisks\": [\"risk 1\", \"risk 2\", \"risk 3\"],\n");
+        sb.append("  \"positiveObservations\": [\"positive finding 1\", \"positive finding 2\"],\n");
         sb.append("  \"recommendedActions\": [\n");
         sb.append("    {\n");
         sb.append("      \"action\": \"specific action to take\",\n");
@@ -196,16 +198,13 @@ public class GeminiService {
     }
 
     // ══════════════════════════════════════════════════════════════
-    //  NEW — Pass 0: Structured document extraction
-    //  Called BEFORE string matching to extract a clean JSON
-    //  representation of the document (type, sender, recipient,
-    //  dates, details, etc.) from raw OCR text.
+    //  Pass 0: Structured document extraction
     // ══════════════════════════════════════════════════════════════
 
     public Map<String, Object> extractDocumentStructure(String ocrText) throws Exception {
 
-        String prompt = buildStructuredExtractionPrompt(ocrText);
-        String rawResponse = callGemini(prompt);
+        String prompt      = buildStructuredExtractionPrompt(ocrText);
+        String rawResponse = callGeminiWithRetry(prompt);
 
         try {
             String cleaned = rawResponse
@@ -216,7 +215,7 @@ public class GeminiService {
             int start = cleaned.indexOf("{");
             int end   = cleaned.lastIndexOf("}");
             if (start == -1 || end == -1) {
-                log.warn("Gemini structured extraction returned no JSON — raw: {}", cleaned);
+                log.warn("Pass 0 — no JSON in Gemini response");
                 return Collections.emptyMap();
             }
 
@@ -224,13 +223,13 @@ public class GeminiService {
             Map<String, Object> result = objectMapper.readValue(
                 cleaned.substring(start, end + 1), Map.class);
 
-            log.info("Pass 0 structured extraction — documentType: {}",
+            log.info("Pass 0 extraction complete — documentType: {}",
                 result.getOrDefault("documentType", "unknown"));
 
             return result;
 
         } catch (Exception e) {
-            log.warn("Failed to parse structured extraction response: {}", e.getMessage());
+            log.warn("Pass 0 parse failed: {}", e.getMessage());
             return Collections.emptyMap();
         }
     }
@@ -240,62 +239,41 @@ public class GeminiService {
 
         sb.append("You are an expert document parser for Malaysian government ");
         sb.append("and corporate documents (Malay/English).\n\n");
-
         sb.append("Extract structured information from the OCR text below.\n");
         sb.append("Return ONLY valid JSON, no markdown, no explanation.\n\n");
-
         sb.append("JSON structure to follow:\n");
         sb.append("{\n");
         sb.append("  \"documentType\": \"e.g. Leave Application / Appointment Letter / Invoice / Memo\",\n");
         sb.append("  \"sender\": {\n");
-        sb.append("    \"name\": \"\",\n");
-        sb.append("    \"staffId\": \"\",\n");
-        sb.append("    \"company\": \"\",\n");
-        sb.append("    \"position\": \"\",\n");
-        sb.append("    \"department\": \"\",\n");
-        sb.append("    \"email\": \"\",\n");
-        sb.append("    \"phone\": \"\"\n");
+        sb.append("    \"name\": \"\", \"staffId\": \"\", \"company\": \"\",\n");
+        sb.append("    \"position\": \"\", \"department\": \"\", \"email\": \"\", \"phone\": \"\"\n");
         sb.append("  },\n");
         sb.append("  \"recipient\": {\n");
-        sb.append("    \"name\": \"\",\n");
-        sb.append("    \"position\": \"\",\n");
-        sb.append("    \"department\": \"\",\n");
-        sb.append("    \"company\": \"\"\n");
+        sb.append("    \"name\": \"\", \"position\": \"\", \"department\": \"\", \"company\": \"\"\n");
         sb.append("  },\n");
         sb.append("  \"subject\": \"\",\n");
         sb.append("  \"dates\": {\n");
-        sb.append("    \"documentDate\": \"\",\n");
-        sb.append("    \"startDate\": \"\",\n");
-        sb.append("    \"endDate\": \"\",\n");
-        sb.append("    \"effectiveDate\": \"\"\n");
+        sb.append("    \"documentDate\": \"\", \"startDate\": \"\",\n");
+        sb.append("    \"endDate\": \"\", \"effectiveDate\": \"\"\n");
         sb.append("  },\n");
         sb.append("  \"referenceNumber\": \"\",\n");
         sb.append("  \"purpose\": \"\",\n");
         sb.append("  \"details\": {\n");
-        sb.append("    \"leaveType\": \"\",\n");
-        sb.append("    \"position\": \"\",\n");
-        sb.append("    \"salary\": \"\",\n");
-        sb.append("    \"location\": \"\",\n");
-        sb.append("    \"duration\": \"\"\n");
+        sb.append("    \"leaveType\": \"\", \"position\": \"\",\n");
+        sb.append("    \"salary\": \"\", \"location\": \"\", \"duration\": \"\"\n");
         sb.append("  },\n");
         sb.append("  \"attachments\": [],\n");
         sb.append("  \"remarks\": \"\"\n");
         sb.append("}\n\n");
-
         sb.append("RULES:\n");
-        sb.append("1. Detect document language (Malay/English/mixed) automatically.\n");
-        sb.append("2. Common Malay field mappings:\n");
-        sb.append("   Tarikh = date, Nama = name, Jawatan = position,\n");
-        sb.append("   Syarikat = company, Alamat = address,\n");
-        sb.append("   Dari/Daripada = sender, Kepada = recipient,\n");
-        sb.append("   Perkara/Perihal = subject, Rujukan = reference number,\n");
-        sb.append("   Bahagian/Jabatan = department, Gaji = salary.\n");
-        sb.append("3. Leave empty string \"\" for fields not found — do NOT invent values.\n");
-        sb.append("4. Dates: return in YYYY-MM-DD format if possible.\n");
-        sb.append("5. Return only the JSON object, starting with { and ending with }.\n\n");
-
-        sb.append("OCR TEXT:\n");
-        sb.append("---START---\n");
+        sb.append("1. Detect language (Malay/English/mixed) automatically.\n");
+        sb.append("2. Malay mappings: Tarikh=date, Nama=name, Jawatan=position,\n");
+        sb.append("   Dari/Daripada=sender, Kepada=recipient, Perkara=subject,\n");
+        sb.append("   Rujukan=reference, Bahagian/Jabatan=department, Gaji=salary.\n");
+        sb.append("3. Leave empty string for fields not found — do NOT invent values.\n");
+        sb.append("4. Dates: YYYY-MM-DD format if possible.\n");
+        sb.append("5. Return only JSON: start with { end with }.\n\n");
+        sb.append("OCR TEXT:\n---START---\n");
         sb.append(ocrText);
         sb.append("\n---END---\n");
 
@@ -303,9 +281,7 @@ public class GeminiService {
     }
 
     // ══════════════════════════════════════════════════════════════
-    //  OCR → Placeholder Mapping  (Pass 2 fallback)
-    //  Called by FieldMappingService for placeholders that Pass 0
-    //  and Pass 1 string-matching could not resolve.
+    //  Pass 2: OCR → Placeholder Mapping fallback
     // ══════════════════════════════════════════════════════════════
 
     @SuppressWarnings("unchecked")
@@ -314,8 +290,8 @@ public class GeminiService {
             List<String> unmappedPhs,
             Map<String, String> partialResults) throws Exception {
 
-        String prompt = buildOcrMappingPrompt(ocrText, unmappedPhs, partialResults);
-        String rawResponse = callGemini(prompt);
+        String prompt      = buildOcrMappingPrompt(ocrText, unmappedPhs, partialResults);
+        String rawResponse = callGeminiWithRetry(prompt);
 
         try {
             String cleaned = rawResponse
@@ -326,7 +302,7 @@ public class GeminiService {
             int start = cleaned.indexOf("{");
             int end   = cleaned.lastIndexOf("}");
             if (start == -1 || end == -1) {
-                log.warn("Gemini OCR mapping returned no JSON — raw: {}", cleaned);
+                log.warn("Pass 2 — no JSON in Gemini response");
                 return emptyMap(unmappedPhs);
             }
 
@@ -337,14 +313,14 @@ public class GeminiService {
                 result.putIfAbsent(ph, "");
             }
 
-            log.info("Gemini resolved {}/{} unmapped placeholders",
+            log.info("Pass 2 resolved {}/{} placeholders",
                 result.values().stream().filter(v -> !v.isBlank()).count(),
                 unmappedPhs.size());
 
             return result;
 
         } catch (Exception e) {
-            log.warn("Failed to parse Gemini OCR mapping response: {}", e.getMessage());
+            log.warn("Pass 2 parse failed: {}", e.getMessage());
             return emptyMap(unmappedPhs);
         }
     }
@@ -357,10 +333,9 @@ public class GeminiService {
         StringBuilder sb = new StringBuilder();
 
         sb.append("You are an expert document parser for Malaysian government and corporate documents.\n");
-        sb.append("You specialize in Malay/English mixed documents including letters, memos, forms, and HR documents.\n\n");
+        sb.append("You specialize in Malay/English mixed documents.\n\n");
 
-        // ── Already resolved context ──────────────────────────────
-        sb.append("CONTEXT — fields already successfully extracted (DO NOT re-map these):\n");
+        sb.append("CONTEXT — already extracted (DO NOT re-map):\n");
         if (partialResults.isEmpty()) {
             sb.append("  (nothing extracted yet)\n");
         } else {
@@ -369,69 +344,45 @@ public class GeminiService {
         }
         sb.append("\n");
 
-        // ── Full OCR text ─────────────────────────────────────────
-        sb.append("FULL OCR TEXT (may contain noise, line breaks, Malay/English mix):\n");
-        sb.append("---START---\n");
+        sb.append("FULL OCR TEXT:\n---START---\n");
         sb.append(ocrText);
         sb.append("\n---END---\n\n");
 
-        // ── Placeholders to resolve ───────────────────────────────
-        sb.append("UNRESOLVED PLACEHOLDERS (you must attempt to find a value for each):\n");
+        sb.append("UNRESOLVED PLACEHOLDERS:\n");
         for (String ph : unmappedPlaceholders) {
-            String hint = ph.replace("[", "").replace("]", "").replace("_", " ").toLowerCase();
+            String hint     = ph.replace("[", "").replace("]", "").replace("_", " ").toLowerCase();
             String malayHint = getMalayHint(hint);
             sb.append("  ").append(ph)
-              .append("  (meaning: ").append(hint)
-              .append(malayHint.isEmpty() ? "" : " | Malay equivalent: " + malayHint)
+              .append("  (").append(hint)
+              .append(malayHint.isEmpty() ? "" : " | " + malayHint)
               .append(")\n");
         }
         sb.append("\n");
 
-        // ── Rules ─────────────────────────────────────────────────
-        sb.append("EXTRACTION RULES:\n");
-        sb.append("1. Extract values ONLY from the OCR text — do NOT invent or assume values.\n");
-        sb.append("2. If a field cannot be found, return empty string \"\" — never null.\n");
-        sb.append("3. Do NOT re-map placeholders already listed in CONTEXT above.\n");
-        sb.append("4. Handle OCR noise: 'Nam4'→'Nama', 'Tanikh'→'Tarikh', '0'→'O' in names, etc.\n");
-        sb.append("5. Dates: return in the exact format found in the document (e.g. '15 Januari 2026').\n");
-        sb.append("6. Names: include full name as written, preserve 'bin'/'binti'/'a/l'/'a/p'.\n");
-        sb.append("7. Reference numbers: preserve original format (e.g. 'TNB/AD/2026/001').\n\n");
+        sb.append("RULES:\n");
+        sb.append("1. Extract ONLY from OCR text — never invent values.\n");
+        sb.append("2. Empty fields return \"\" — never null.\n");
+        sb.append("3. Do NOT re-map already extracted fields above.\n");
+        sb.append("4. Handle OCR noise: Nam4→Nama, 0→O in names, etc.\n");
+        sb.append("5. Dates: exact format from document (e.g. '15 Januari 2026').\n");
+        sb.append("6. Names: full name, preserve bin/binti/a/l/a/p.\n");
+        sb.append("7. Reference numbers: preserve exact format.\n\n");
 
-        sb.append("MALAY FIELD ABBREVIATIONS (use these to locate values in OCR text):\n");
-        sb.append("  Tarikh / Tkh         = date\n");
-        sb.append("  Nama                 = name\n");
-        sb.append("  Jawatan              = position / title\n");
-        sb.append("  Bahagian / Jabatan   = department / division\n");
-        sb.append("  Syarikat             = company\n");
-        sb.append("  Alamat               = address\n");
-        sb.append("  No. Tel / Tel        = phone number\n");
-        sb.append("  Faks                 = fax\n");
-        sb.append("  Bil. / No. Rujukan   = reference number\n");
-        sb.append("  Kepada               = recipient (to)\n");
-        sb.append("  Daripada / Dari      = sender (from)\n");
-        sb.append("  Perkara / Perihal    = subject / regarding\n");
-        sb.append("  Gaji / Emolumen      = salary\n");
-        sb.append("  Cuti                 = leave\n");
-        sb.append("  Tempoh               = duration / period\n");
-        sb.append("  Mulai / Bermula      = start date\n");
-        sb.append("  Hingga / Sehingga    = end date\n\n");
+        sb.append("Malay abbreviations: Tarikh=date, Nama=name, Jawatan=position,\n");
+        sb.append("Bahagian/Jabatan=department, No.Tel=phone, Bil./Rujukan=reference,\n");
+        sb.append("Kepada=recipient, Daripada=sender, Perkara=subject, Gaji=salary,\n");
+        sb.append("Tempoh=duration, Mulai=start date, Hingga=end date.\n\n");
 
-        // ── Output format ─────────────────────────────────────────
-        sb.append("RESPOND ONLY with a valid JSON object. No markdown, no explanation.\n");
-        sb.append("Every placeholder listed above MUST appear as a key in the response.\n");
-        sb.append("Example:\n");
+        sb.append("RESPOND ONLY with valid JSON. Every placeholder MUST be a key.\n");
         sb.append("{\n");
         sb.append("  \"[TARIKH]\": \"15 Januari 2026\",\n");
-        sb.append("  \"[NAMA_PEKERJA]\": \"Ahmad bin Ali\",\n");
-        sb.append("  \"[JAWATAN]\": \"Jurutera\",\n");
-        sb.append("  \"[NOMBOR_RUJUKAN]\": \"\"\n");
+        sb.append("  \"[NAMA_PEKERJA]\": \"Ahmad bin Ali\"\n");
         sb.append("}\n");
-        sb.append("CRITICAL: Start with { and end with }. No text before or after.\n");
+        sb.append("CRITICAL: Start with { end with }. No text before or after.\n");
 
         return sb.toString();
     }
 
-    // ── Malay hint lookup for common placeholder names ────────────
     private String getMalayHint(String englishHint) {
         Map<String, String> hints = Map.ofEntries(
             Map.entry("name",             "Nama"),
@@ -465,15 +416,48 @@ public class GeminiService {
     }
 
     // ══════════════════════════════════════════════════════════════
-    //  Shared: call Gemini API
+    //  Core: call Gemini with exponential backoff retry
     // ══════════════════════════════════════════════════════════════
 
-    private String callGemini(String prompt) throws Exception {
+    private String callGeminiWithRetry(String prompt) throws Exception {
+        int  attempt  = 0;
+        long delayMs  = INITIAL_DELAY;
+
+        while (attempt < MAX_RETRIES) {
+            try {
+                return callGeminiOnce(prompt);
+            } catch (RuntimeException e) {
+                boolean is429 = e.getMessage() != null
+                    && e.getMessage().contains("429");
+
+                if (is429 && attempt < MAX_RETRIES - 1) {
+                    attempt++;
+                    log.warn("Gemini 429 — retry {}/{} after {}ms",
+                        attempt, MAX_RETRIES, delayMs);
+                    Thread.sleep(delayMs);
+                    delayMs *= 2; // exponential: 2s → 4s → 8s
+                } else {
+                    throw e; // non-429 or exhausted retries
+                }
+            }
+        }
+        throw new RuntimeException(
+            "Gemini unavailable after " + MAX_RETRIES + " retries.");
+    }
+
+    private String callGeminiOnce(String prompt) throws Exception {
+
+        // ── Build request with generationConfig for deterministic output ──
         Map<String, Object> requestBody = Map.of(
             "contents", List.of(
                 Map.of("parts", List.of(
                     Map.of("text", prompt)
                 ))
+            ),
+            "generationConfig", Map.of(
+                "temperature",     0.1,   // low = deterministic JSON
+                "maxOutputTokens", 2048,  // cap response size
+                "topP",            0.8
             )
         );
 
@@ -485,15 +469,15 @@ public class GeminiService {
             .build();
 
         try (Response response = httpClient.newCall(request).execute()) {
+
             if (response.code() == 429) {
-                throw new RuntimeException(
-                    "AI service is busy. Please wait 1 minute and try again.");
+                throw new RuntimeException("429");
             }
             if (!response.isSuccessful()) {
                 throw new RuntimeException("Gemini API error: " + response.code());
             }
+
             String responseBody = response.body().string();
-            log.info("Gemini raw response: {}", responseBody);
 
             JsonNode root = objectMapper.readTree(responseBody);
             String text = root.path("candidates")
@@ -504,13 +488,16 @@ public class GeminiService {
                 .path("text")
                 .asText();
 
-            log.info("Gemini extracted text: {}", text);
+            // Log only first 200 chars to avoid flooding logs
+            log.debug("Gemini response preview: {}",
+                text.length() > 200 ? text.substring(0, 200) + "…" : text);
+
             return text;
         }
     }
 
     // ══════════════════════════════════════════════════════════════
-    //  Shared: parse Gemini JSON response
+    //  Parse Gemini JSON response → Map
     // ══════════════════════════════════════════════════════════════
 
     @SuppressWarnings("unchecked")
@@ -525,12 +512,12 @@ public class GeminiService {
             int jsonEnd   = cleaned.lastIndexOf("}");
 
             if (jsonStart == -1 || jsonEnd == -1) {
-                log.error("No JSON found in Gemini response: {}", cleaned);
+                log.error("No JSON found in Gemini response");
                 return Map.of("error", "AI returned invalid response");
             }
 
-            String jsonOnly = cleaned.substring(jsonStart, jsonEnd + 1);
-            return objectMapper.readValue(jsonOnly, Map.class);
+            return objectMapper.readValue(
+                cleaned.substring(jsonStart, jsonEnd + 1), Map.class);
 
         } catch (Exception e) {
             log.error("Failed to parse Gemini response: {}", e.getMessage());

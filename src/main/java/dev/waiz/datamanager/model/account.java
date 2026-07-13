@@ -1,5 +1,6 @@
 package dev.waiz.datamanager.model;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.*;
 import jakarta.persistence.*;
@@ -42,6 +43,9 @@ public class account {
     protected void onCreate() {
         this.createdAt = OffsetDateTime.now();
     }
+
+    @Column(name = "tokens_valid_after")
+    private Instant tokensValidAfter;
 
     public account(String username, String passwordHash, String role, String status) {
         this.username = username;

@@ -175,11 +175,8 @@ public class SecurityConfig implements WebMvcConfigurer {
     @Component
     @RequiredArgsConstructor
     public static class JwtAuthFilter extends OncePerRequestFilter {
-
-        
-        private final JwtUtil jwtUtil;
-
-        
+         private final JwtUtil jwtUtil;
+        private final dev.waiz.datamanager.repository.accountrepository accountRepository;
         private final CookieUtil cookieUtil;
 
         @Override
@@ -194,16 +191,23 @@ public class SecurityConfig implements WebMvcConfigurer {
                 if (jwtUtil.validateToken(token)) {
                     String username = jwtUtil.extractUsername(token);
                     String role     = jwtUtil.extractRole(token);
+                    java.time.Instant issuedAt = jwtUtil.extractIssuedAt(token);
 
-                    System.out.println("✅ Auth: " + username + " | Role: " + role);
+                    boolean revoked = isTokenRevoked(username, issuedAt);
 
-                    UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                            username,
-                            null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + role))
-                        );
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    if (!revoked) {
+                        System.out.println("✅ Auth: " + username + " | Role: " + role);
+
+                        UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                username,
+                                null,
+                                List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                            );
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    } else {
+                        System.out.println("❌ Token revoked for: " + username);
+                    }
                 } else {
                     System.out.println("❌ Invalid token for: " + request.getRequestURI());
                 }
@@ -214,13 +218,20 @@ public class SecurityConfig implements WebMvcConfigurer {
             filterChain.doFilter(request, response);
         }
 
+        private boolean isTokenRevoked(String username, java.time.Instant issuedAt) {
+            if (username == null || issuedAt == null) return false;
+
+            return accountRepository.findByUsername(username)
+                .map(acc -> acc.getTokensValidAfter() != null
+                            && issuedAt.isBefore(acc.getTokensValidAfter()))
+                .orElse(false);
+        }
+
         private String resolveToken(HttpServletRequest request) {
-            // 1. Cookie
             Optional<String> cookieToken =
                 cookieUtil.readCookie(request, CookieUtil.ACCESS_TOKEN_COOKIE);
             if (cookieToken.isPresent()) return cookieToken.get();
 
-            // 2. Bearer header fallback
             String authHeader = request.getHeader("Authorization");
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 return authHeader.substring(7);
@@ -228,5 +239,6 @@ public class SecurityConfig implements WebMvcConfigurer {
 
             return null;
         }
-    }
+    } 
+    
 }

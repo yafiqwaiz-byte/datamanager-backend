@@ -31,4 +31,8 @@ public class POAgingReportDTO {
     private Integer partiallyPaidCount; // POs partially paid (value remaining > 0)
     private Double totalClearedAmount; // total GR/SA received so far 
     private String remarks; //human-readable summary
-}
+
+    private Double previousPercentAging;
+    private String trend;          // "Improving" / "Worsening" / "Flat" / null
+    private String sizeBracket;    // "Large" / "Medium" / "Small"
+    }
