@@ -1,8 +1,11 @@
 package dev.waiz.datamanager.service;
 
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.time.*;
@@ -52,7 +55,6 @@ public class FormTemplateService {
     // Reused for serializing/deserializing imageLabels to/from the TEXT column.
     // Stateless and thread-safe, so a single shared instance is fine here.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
 
 
     public List<FormTemplateDTO> getActiveTemplates(){
@@ -132,28 +134,37 @@ public class FormTemplateService {
     return dto;
     }
 
-    public FormTemplateDTO updateTemplate(UUID id,TemplateRequestDTO request) {
-        formtemplate template = formtemplaterepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Template not found"));
-        template.setTemplateName(request.getTemplateName());
-        template.setDescription(request.getDescription());
-        if (request.getIsActive() != null) {
-            template.setIsActive(request.getIsActive());
-        }
-        formtemplaterepository.save(template);
+    public FormTemplateDTO updateTemplate(UUID id, TemplateRequestDTO request) {
+    formtemplate template = formtemplaterepository.findById(id)
+        .orElseThrow(() -> new RuntimeException("Template not found"));
+    template.setTemplateName(request.getTemplateName());
+    template.setDescription(request.getDescription());
+    if (request.getIsActive() != null) {
+        template.setIsActive(request.getIsActive());
+    }
+    formtemplaterepository.save(template);
 
-        // Delete answers first — they reference form_field via FK
-        List<formfield> existingFields = formfieldrepository.findByTemplate_TemplateId(id);
-        existingFields.forEach(field -> 
-            formanswerrepository.deleteByField_FieldId(field.getFieldId())
-        );
+    List<formfield> existingFields = formfieldrepository.findByTemplate_TemplateId(id);
+    Map<UUID, formfield> existingById = existingFields.stream()
+        .collect(Collectors.toMap(f -> f.getFieldId(), f -> f));
 
-        formfieldrepository.deleteByTemplate_TemplateId(id);
-        formfieldrepository.flush();
+    if (request.getFields() != null) {
+        Set<UUID> incomingIds = new HashSet<>();
 
-        if(request.getFields()!=null){
-            List<formfield> fields = request.getFields().stream()
-                .map(dto -> {
+        for (FormFieldDTO dto : request.getFields()) {
+            if (dto.getFieldId() != null && existingById.containsKey(dto.getFieldId())) {
+                // Update in place — same field_id, answers stay intact
+                formfield f = existingById.get(dto.getFieldId());
+                f.setFieldLabel(dto.getFieldLabel());
+                f.setFieldType(dto.getFieldType());
+                f.setIsRequired(dto.getIsRequired());
+                f.setFieldOrder(dto.getFieldOrder());
+                f.setPlaceholder(dto.getPlaceholder());
+                f.setImageLabels(serializeImageLabels(dto.getImageLabels()));
+                formfieldrepository.save(f);
+                incomingIds.add(dto.getFieldId());
+            } else {
+                // Genuinely new field
                 formfield f = new formfield();
                 f.setFieldLabel(dto.getFieldLabel());
                 f.setFieldType(dto.getFieldType());
@@ -162,27 +173,33 @@ public class FormTemplateService {
                 f.setPlaceholder(dto.getPlaceholder());
                 f.setImageLabels(serializeImageLabels(dto.getImageLabels()));
                 f.setTemplate(template);
-                return f;
-            })
-            .collect(Collectors.toList());
-
-            formfieldrepository.saveAll(fields);
+                formfield saved = formfieldrepository.save(f);
+                incomingIds.add(saved.getFieldId());
+            }
         }
-         // Build DTO directly from repository — bypasses Hibernate cache
-            FormTemplateDTO dto = new FormTemplateDTO();
-            dto.setTemplateId(template.getTemplateId());
-            dto.setTemplateName(template.getTemplateName());
-            dto.setDescription(template.getDescription());
-            dto.setIsActive(template.getIsActive());
-            dto.setFields(
-            formfieldrepository.findByTemplate_TemplateId(id)
-            .stream()
+
+        // Only delete fields that were actually removed by the user
+        for (formfield existing : existingFields) {
+            if (!incomingIds.contains(existing.getFieldId())) {
+                formanswerrepository.deleteByField_FieldId(existing.getFieldId());
+                formfieldrepository.delete(existing);
+            }
+        }
+    }
+
+    FormTemplateDTO dto = new FormTemplateDTO();
+    dto.setTemplateId(template.getTemplateId());
+    dto.setTemplateName(template.getTemplateName());
+    dto.setDescription(template.getDescription());
+    dto.setIsActive(template.getIsActive());
+    dto.setFields(
+        formfieldrepository.findByTemplate_TemplateId(id).stream()
             .sorted(Comparator.comparing(f -> Objects.requireNonNull(f).getFieldOrder()))
             .map(this::fieldToDTO)
             .collect(Collectors.toList())
     );
     return dto;
-    }
+}
 
     public void deleteTemplate(UUID id) {
         if (!formtemplaterepository.existsById(id)) {

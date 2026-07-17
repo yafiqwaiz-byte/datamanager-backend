@@ -347,47 +347,70 @@ public class accountcontroller {
     //  COMPLETE PROFILE — Google staff
     // ──────────────────────────────────────────────────────────────────
     @Transactional
-    @PostMapping("/complete-profile/staff")
-    public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileRequest request,
-    HttpServletRequest httpRequest) {
-        try {
-            String username = extractUsernameFromRequest(httpRequest);
-            if (username == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
-            }
-
-            Optional<account> accountOpt = accountService.getAccountByUsername(username);
-            if (accountOpt.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
-            }
-
-            account acc = accountOpt.get();
-
-            Optional<staff> existingStaff = staffService.getStaffByAccountId(acc.getAccountId());
-            if (existingStaff.isPresent()) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body("Profile already completed");
-            }
-
-            staff newStaff = new staff();
-            newStaff.setAccount(acc);
-            newStaff.setFullName(acc.getUsername().contains("@") ? acc.getUsername().split("@")[0] : acc.getUsername());
-            newStaff.setDepartment(request.getDepartment());
-            newStaff.setPosition(request.getPosition());
-            staff createdStaff = staffService.createStaff(newStaff);
-
-            AuthResponse authResponse = AuthResponse.builder()
-                    .username(acc.getUsername())
-                    .role(acc.getRole())
-                    .user(createdStaff)
-                    .newUser(false)
-                    .build();
-
-            return ResponseEntity.ok(authResponse);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error completing profile: " + e.getMessage());
+@PostMapping("/complete-profile/staff")
+public ResponseEntity<?> completeStaffProfile(@RequestBody CompleteStaffProfileRequest request,
+HttpServletRequest httpRequest) {
+    try {
+        String username = extractUsernameFromRequest(httpRequest);
+        if (username == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
         }
+
+        // ── Invite code validation — same rule as normal staff signup ──
+        if (request.getInviteCode() == null || request.getInviteCode().isBlank()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Staff registration requires a valid invite code. Please contact your admin.");
+        }
+        if (!staffInviteService.isValidInviteCode(request.getInviteCode())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Invalid or expired invite code. Please contact your admin for a new code.");
+        }
+
+        Optional<account> accountOpt = accountService.getAccountByUsername(username);
+        if (accountOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Account not found");
+        }
+
+        account acc = accountOpt.get();
+
+        Optional<staff> existingStaff = staffService.getStaffByAccountId(acc.getAccountId());
+        if (existingStaff.isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Profile already completed");
+        }
+
+        // Staff accounts should be pending until admin approval — same as normal signup
+        acc.setStatus("pending");
+        accountService.updateAccount(acc.getAccountId(), acc);
+
+        staff newStaff = new staff();
+        newStaff.setAccount(acc);
+        newStaff.setFullName(acc.getUsername().contains("@") ? acc.getUsername().split("@")[0] : acc.getUsername());
+        newStaff.setDepartment(request.getDepartment());
+        newStaff.setPosition(request.getPosition());
+        staff createdStaff = staffService.createStaff(newStaff);
+
+        // Mark invite code as used
+        staffInviteService.markAsUsed(request.getInviteCode());
+
+        try {
+            emailService.sendStaffRegistrationAlert("yafiqwaiz@gmail.com", acc.getUsername());
+        } catch (Exception e) {
+            System.out.println("⚠️ Admin notification email failed: " + e.getMessage());
+        }
+
+        AuthResponse authResponse = AuthResponse.builder()
+                .username(acc.getUsername())
+                .role(acc.getRole())
+                .user(createdStaff)
+                .newUser(false)
+                .build();
+
+        return ResponseEntity.ok(authResponse);
+    } catch (Exception e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error completing profile: " + e.getMessage());
     }
+}
 
     // ──────────────────────────────────────────────────────────────────
     //  ACCOUNT CRUD

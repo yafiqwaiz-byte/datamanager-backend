@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 import dev.waiz.datamanager.model.account;
 import dev.waiz.datamanager.model.refreshtoken;
 import dev.waiz.datamanager.service.RefreshTokenService;
-import dev.waiz.datamanager.service.accountservice;
 import dev.waiz.datamanager.util.CookieUtil;
 import dev.waiz.datamanager.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,11 +27,8 @@ import lombok.RequiredArgsConstructor;
 public class AuthController {
 
     private final RefreshTokenService refreshTokenService;
-    private final accountservice accountService;
     private final JwtUtil jwtUtil;
     private final CookieUtil cookieUtil;
-
-    
 
      // ──────────────────────────────────────────────────────────────────
     //  POST /api/auth/refresh
@@ -52,7 +48,7 @@ public class AuthController {
         Optional<refreshtoken> rotated = refreshTokenService.rotateRefreshToken(refreshTokenOpt.get());
 
         if (rotated.isEmpty()) {
-            
+
             cookieUtil.clearAuthCookies(response);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
             .body(Map.of("error","Refresh token invalid or expired,Please try again"));
@@ -72,17 +68,11 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request,HttpServletResponse response){
 
-        //Get logged in username from security context(set by JWTAuthFilter)
-        String username = SecurityContextHolder.getContext()
-        .getAuthentication()
-        .getName();
+        Optional<String> refreshTokenOpt = cookieUtil.readCookie(request, CookieUtil.REFRESH_TOKEN_COOKIE);
 
-        accountService.getAccountByUsername(username).ifPresent(acc -> {
-            refreshTokenService.revokeAllTokensForAccount(acc);
-        });
+        refreshTokenOpt.ifPresent(tokenString -> refreshTokenService.getAccountFromToken(tokenString).ifPresent(refreshTokenService::revokeAllTokensForAccount));
 
         cookieUtil.clearAuthCookies(response);
-
         SecurityContextHolder.clearContext();
 
         return ResponseEntity.ok(Map.of("Message","Logged out successfully"));

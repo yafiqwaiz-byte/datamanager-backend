@@ -11,4 +11,5 @@ public class CompleteStaffProfileRequest {
 
     private String department;
     private String position;
+    private String inviteCode;
 }
